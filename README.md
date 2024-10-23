@@ -1,4 +1,4 @@
-# :seedling: [Se]()quence Labeling [Par]()sing
+# :seedling: Parsing as Sequence Labeling
 
 Hi :wave: This is a [Python](https://www.python.org/) implementation for sequence labeling algorithms (and others!) for Dependency, Constituency and Semantic Parsing.
 
