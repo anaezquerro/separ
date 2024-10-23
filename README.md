@@ -138,7 +138,7 @@ The [run.py](../run.py) script allows running the training, prediction and evalu
 For instance, to train a BiLSTM-based encoder with the $3$-planar bracketing encoding in the DM dataset, run:
 
 ```shell
-python3 run.py sdp-bracket -c configs/bilstm.ini -p results/dm/ --device=0 -n=3 train \
+python3 run.py sdp-bracket -c configs/bilstm.ini -p results/dm/ --device=0 -k=3 train \
     --train treebanks/sdp-2015/dm/train.sdp \
     --dev treebanks/sdp-2015/dm/dev.sdp \
     --test treebanks/sdp-2015/dm/id.sdp treebanks/sdp-2015/dm/ood.sdp

@@ -398,7 +398,7 @@ class Parser:
                 # update 
                 pbar.update(len(sents))
                 elapsed += (end-start)
-        metric = self.METRIC(data.__class__(preds, None), data)
+        metric = self.METRIC(data.__class__(preds, None), data, num_workers=num_workers)
         log.info(f'{data.name}: {metric} [{data.n_tokens/elapsed:.2f} token/s, {len(data)/elapsed:.2f} sent/s, {elapsed:.2f}s elapsed]')
         return metric 
     
