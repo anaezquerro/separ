@@ -147,9 +147,16 @@ python3 run.py sdp-bracket -c configs/bilstm.ini -p results/dm/ --device=0 -k=3 
 The encoder can be changed using the other configurations (we provided the encoder with XLM-RoBERTa at [configs/xlm.ini](configs/xlm.ini) and XLNet ([configs/xlnet.ini](configs/xlnet.ini))). 
 
 
-## Dependency Parsing [on-going]
+## Dependency Parsing 
 
-## Constituency Parsing [on-going]
+As explained with the semantic parsers, the dependency parsers are also executed from the [run.py](run.py) file. For instance, to run the relative indexing (`dep-idx`) model with XLNet, use the following command:
+```shell 
+python3 run.py dep-idx -c configs/xlnet.ini -p results/english-ewt --device=0 -rel train \
+    --train treebanks/english-ewt/train.conllu \
+    --dev treebanks/english-ewt/dev.conllu \
+    --test treebanks/english-ewt/test.conllu
+```
+
 
 
 
