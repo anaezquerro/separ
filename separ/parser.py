@@ -1,18 +1,18 @@
 from torch import nn 
-from typing import List, Tuple, Union, Optional, Dict, Iterator, Callable
+from typing import List, Tuple, Union, Optional, Dict, Callable
 import os, shutil, torch, pickle, time, logging 
-from torch.optim import AdamW, Optimizer
+from torch.optim import AdamW
 from torch.utils.data import DataLoader
 import numpy as np 
 from argparse import ArgumentParser
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm 
 from carbontracker.tracker import CarbonTracker
 
-from separ.utils import Config, to, bar, logger, init_folder, History, Epoch, Metric, merge, fdict, scale_dict
+from separ.utils import to, bar, logger, init_folder, History, Epoch, Metric, merge, fdict, scale_dict
 from separ.utils.metric import Metric
-from separ.data import OneHotTokenizer, PretrainedTokenizer, CharacterTokenizer, Tokenizer, SDP, CoNLL, PTB
-from separ.structs import AbstractDataset, Graph
+from separ.data import SDP, CoNLL, PTB
+from separ.structs import AbstractDataset
 from separ.model import Model
 
 # torch.multiprocessing.set_sharing_strategy('file_system')
@@ -398,7 +398,7 @@ class Parser:
                 # update 
                 pbar.update(len(sents))
                 elapsed += (end-start)
-        metric = self.METRIC(data.__class__(preds, None), data, num_workers=num_workers)
+        metric = self.METRIC(data.__class__(preds, None), data)
         log.info(f'{data.name}: {metric} [{data.n_tokens/elapsed:.2f} token/s, {len(data)/elapsed:.2f} sent/s, {elapsed:.2f}s elapsed]')
         return metric 
     

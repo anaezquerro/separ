@@ -6,6 +6,7 @@ import torch
 
 from separ.utils.fn import init_folder, parallel, div, avg
 from separ.data import SDP, CoNLL,  PTB
+from separ.utils.common import SDP_SCRIPT, CON_SCRIPT
 
 class Metric:
     METRICS = [] 
@@ -68,7 +69,7 @@ class SemanticMetric(Metric):
     ATTRIBUTES = ['ur', 'up', 'uf', 'um', 'lr', 'lp', 'lf', 'lm', 'n']
     METRICS = ['UR', 'UP', 'UF', 'UM', 'LR', 'LP', 'LF', 'LM']
     KEY_METRICS = ['UF', 'LF']
-    sdp_script = 'eval/sdp-eval/run.sh'
+    sdp_script = SDP_SCRIPT
     
     def __call__(
         self, 
@@ -99,10 +100,10 @@ class SemanticMetric(Metric):
         if isinstance(pred, SDP.Graph) and isinstance(gold, SDP.Graph):
             self.graph(pred, gold)
         elif isinstance(pred, SDP) and isinstance(gold, SDP):
-            if num_workers == 1:
+            if self.sdp_script:
                 self.dataset(pred, gold)
             else:
-                self += sum(parallel(SemanticMetric, pred, gold, num_workers=num_workers, name='sdp-metric'))
+                self += sum(parallel(SemanticMetric, pred, gold, name='sdp-metric'))
         return self 
             
     def graph(self, pred: SDP.Graph, gold: SDP.Graph):
@@ -242,25 +243,28 @@ class ConstituencyMetric(Metric):
     ATTRIBUTES = ['ur', 'up', 'uf', 'um', 'lr', 'lp', 'lf', 'lm', 'n']
     METRICS = ['UR', 'UP', 'UF', 'UM', 'LR', 'LP', 'LF', 'LM']
     KEY_METRICS = ['LF']
-    eps = 1e-12 
-    con_script = 'eval/EVALB/evalb'
+    con_script = CON_SCRIPT
     
     def __call__(
         self, 
         pred: Union[PTB, PTB.Tree],
         gold: Union[PTB, PTB.Tree],
-        tmp_folder: str = '.tmp/',
         num_workers: int = 1
     ) -> ConstituencyMetric:
         if isinstance(pred, PTB) and isinstance(gold, PTB):
-            return self.dataset(pred, gold, tmp_folder, num_workers)
+            if self.con_script:
+                self.dataset(pred, gold, num_workers)
+            else:
+                self += sum(parallel(ConstituencyMetric, pred, gold, num_workers=num_workers, name='con-metric'))
         elif isinstance(pred, PTB.Tree) and isinstance(gold, PTB.Tree):
             return self.apply(pred, gold)
         else:
             raise ValueError
+        return self 
         
-    def dataset(self, pred: PTB, gold: PTB, tmp_folder: str, num_workers: int) -> ConstituencyMetric:
-        init_folder(tmp_folder)
+    def dataset(self, pred: PTB, gold: PTB) -> ConstituencyMetric:
+        tmp_folder = tempfile.mkdtemp()
+        
         gold_path = f'{tmp_folder}/gold.ptb'
         pred_path = f'{tmp_folder}/pred.ptb'
         gold.save(gold_path)
@@ -273,14 +277,14 @@ class ConstituencyMetric(Metric):
         self.lf += lf 
         self.lm += lm
         
-        umetric = sum(parallel(ConstituencyMetric, pred, gold, num_workers=num_workers, name='con-metric'))
+        # unlabeled metrics must be computed manually
+        umetric = sum(parallel(ConstituencyMetric, pred, gold, num_workers=1, name='con-metric'))
         self.ur += umetric.ur
         self.up += umetric.up
         self.uf += umetric.uf
         self.um += umetric.um
         self.n += len(pred)
         shutil.rmtree(tmp_folder)
-        return self 
         
     def apply(self, pred: PTB.Tree, gold: PTB.Tree) -> ConstituencyMetric:
         umask = pred.MATRIX & gold.MATRIX 
@@ -301,7 +305,6 @@ class ConstituencyMetric(Metric):
         self.lf += div(2*lr*lp, lr+lp)
         self.lm += lmask.all()
         self.n += 1
-        return self 
     
     @property
     def UR(self) -> float:
