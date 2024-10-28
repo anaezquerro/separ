@@ -11,10 +11,10 @@ Hi :wave: This is a [Python](https://www.python.org/) implementation for sequenc
     - $4$-bit projective  encoding ([Gómez-Rodríguez et al., 2023](https://aclanthology.org/2023.emnlp-main.393/)).
     - $7$-bit $2$-planar encoding ([Gómez-Rodríguez et al., 2023](https://aclanthology.org/2023.emnlp-main.393/)).
 - **Semantic Dependency Parsing**:
-    - Absolute and relative indexing ([Ezquerro et al., 2024]()).
-    - Bracketing encoding ($k$-planar) ([Ezquerro et al., 2024]()).
-    - $4k$-bit encoding ($k$-planar) ([Ezquerro et al., 2024]()).
-    - $6k$-bit encoding ($k$-planar) ([Ezquerro et al., 2024]()).
+    - Absolute and relative indexing ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972)).
+    - Bracketing encoding ($k$-planar) ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972)).
+    - $4k$-bit encoding ($k$-planar) ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972)).
+    - $6k$-bit encoding ($k$-planar) ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972)).
 - **Constituency Parsing**:
     - Absolute and relative indexing ([Gómez-Rodríguez & Vilares, 2018](https://aclanthology.org/D18-1162/)).
 
