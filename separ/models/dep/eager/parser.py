@@ -250,7 +250,7 @@ class ArcEagerDependencyParser(Parser):
         actions, rels, states = targets
         embed, s_action, s_rel = self.model.control(inputs[0], inputs[1:], states)
         loss = self.model.loss(s_action, s_rel, actions, rels)
-        control = dict(loss=loss, aacc=acc(s_action, actions), racc=acc(s_rel, rels))
+        control = dict(loss=loss.item(), aacc=acc(s_action, actions), racc=acc(s_rel, rels))
         oracles = [self.Oracle(self.n_stack, self.n_buffer).reset(len(graph)) for graph in graphs]
         while not all(oracle.final for oracle in oracles):
             states = [oracle.state.tensor.to(self.device).unsqueeze(0) for oracle in oracles]

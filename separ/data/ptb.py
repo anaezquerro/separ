@@ -1,41 +1,13 @@
 
 from __future__ import annotations
-from typing import List, Iterator, Optional, Tuple, Dict 
+from typing import List, Iterator, Optional, Tuple
 import numpy as np 
-import torch, re 
+import torch
 
 from separ.structs import AbstractDataset
-from separ.utils import parallel, flatten
+from separ.utils import parallel, flatten 
 
 
-def split_ptb(line: str) -> Iterator[str]:
-    """Iterates over the elements of a bracketed tree representation.
-    
-    Args:
-        line (str): Bracketed tree representation.
-        
-    Returns: Iterator[str]
-        Elements of the tree.
-        
-    Examples: 
-    >>> line = "(S (NP-SBJ (PRP It) ) (VP (VBZ has) (NP (NP (DT no) (NN bearing) ) (PP-DIR (IN on) (NP (NP (PRP$ our) (NN work) (NN force) ) (NP-TMP (NN today) ))))) (. .) )"
-    >>> list(split_ptb(line))[:10]
-    ['(', 'S', '(', 'NP-SBJ', '(', 'PRP', 'It', ')']
-    """
-    item = ''
-    for char in line.strip():
-        if char == '(' or char == ')':
-            if len(item) > 0:
-                yield item 
-            item = ''
-            yield char
-        elif char == ' ':
-            if len(item) > 0:
-                yield item
-                item = ''
-        else:
-            item += char 
-            
 class PTB(AbstractDataset):
     EXTENSION: str = '.ptb'
     SEP: str = '\n'
@@ -43,7 +15,7 @@ class PTB(AbstractDataset):
     
     class Tree:
         """Instance of a tree as the label component and attached dependants."""
-        UNARY = '@'
+        UNARY = '@' # special character used to separate the constituents of unary chains
         FIELDS = ['FORM', 'POS']
         
         def __init__(self, label: str, deps: List[PTB.Tree] = []):
@@ -194,12 +166,25 @@ class PTB(AbstractDataset):
             else:
                 return PTB.Tree(self.label, deps=[dep.recover_unary() for dep in self.deps])
             
+        def rebuild_field(self, field: str, values: List[str]) -> PTB.Tree:
+            """Updates an entire field in the leaves of the tree.
+
+            Args:
+                field (str): Field of the tree.
+                values (List[str]): Values to update.
+
+            Returns:
+                PTB.Tree: Updated tree.
+            """
+            assert field == 'POS', 'In PTB trees the only field that can be rebuilt is the POS'
+            return self.rebuild_tags(values.copy())
+            
         def rebuild_tags(self, tags: List[str]) -> PTB.Tree:
             if self.is_preterminal():
                 return PTB.Tree(label=tags.pop(0), deps=self.deps)
             else:
-                return PTB.Tree(self.label, deps=[dep.rebuild_tags(tags) for dep in self.deps])
-                
+                return PTB.Tree(self.label, deps=[dep.rebuild_tags(tags.pop(0)) for dep in self.deps])
+            
         @property
         def depth(self) -> int:
             if self.is_preterminal():
@@ -331,11 +316,18 @@ class PTB(AbstractDataset):
             (S (NP-SBJ-1 (DT The) (NN decision)) (VP (VBD was) (VP (VBN announced) (NP (-NONE- *-1)) (SBAR-TMP (IN after) (S (NP-SBJ (NN trading)) (VP (VBD ended)))))) (. .))
             """
             for span in sorted(spans):
-                nodes[span.LEFT] = PTB.Tree(span.LABEL, deps=[nodes[i] for i in range(span.LEFT, span.RIGHT) if nodes[i] is not None])
+                if any(node is not None for node in nodes[span.LEFT:span.RIGHT]):
+                    nodes[span.LEFT] = PTB.Tree(span.LABEL, deps=[node for node in nodes[span.LEFT:span.RIGHT] if node is not None])
                 for i in range(span.LEFT+1, span.RIGHT):
                     nodes[i] = None 
-            return nodes[0].recover_unary()
-            
+            # if there is more than one node in the list, the tree is not connected
+            if sum(node is not None for node in nodes) > 1:
+                tree = PTB.Tree('S', deps=[node for node in nodes if node is not None])
+            else:
+                tree = nodes[0].recover_unary()
+            assert len(nodes) == len(tree), f'Lenght mismatch {len(tree)} != {len(nodes)}'
+            return tree
+        
         @classmethod
         def from_ptb(cls, line: str) -> PTB.Tree:
             """Builds a tree from the PTB format.
@@ -414,8 +406,36 @@ class PTB(AbstractDataset):
     
     @property
     def CONSTITUENT(self) -> str:
+        """Returns the most frequent constituent."""
         values, freqs = np.unique(flatten(tree.constituents for tree in self), return_counts=True)
         return values[np.argmax(freqs)]
     
 
+def split_ptb(line: str) -> Iterator[str]:
+    """Iterates over the elements of a bracketed tree representation.
     
+    Args:
+        line (str): Bracketed tree representation.
+        
+    Returns: Iterator[str]
+        Elements of the tree.
+        
+    Examples: 
+    >>> line = "(S (NP-SBJ (PRP It) ) (VP (VBZ has) (NP (NP (DT no) (NN bearing) ) (PP-DIR (IN on) (NP (NP (PRP$ our) (NN work) (NN force) ) (NP-TMP (NN today) ))))) (. .) )"
+    >>> list(split_ptb(line))[:10]
+    ['(', 'S', '(', 'NP-SBJ', '(', 'PRP', 'It', ')']
+    """
+    item = ''
+    for char in line.strip():
+        if char == '(' or char == ')':
+            if len(item) > 0:
+                yield item 
+            item = ''
+            yield char
+        elif char == ' ':
+            if len(item) > 0:
+                yield item
+                item = ''
+        else:
+            item += char 
+            

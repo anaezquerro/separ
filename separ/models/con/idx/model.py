@@ -2,10 +2,9 @@ from typing import Optional, Tuple, List
 from torch import nn 
 import torch 
 
-
-from separ.model import Model
-from separ.modules import FFN
-from separ.utils import Config
+from separ.model import Model 
+from separ.modules import FFN 
+from separ.utils import Config 
 
 class IndexConstituencyModel(Model):
     

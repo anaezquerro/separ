@@ -1,9 +1,9 @@
 from __future__ import annotations
 from argparse import ArgumentParser
 from typing import Tuple, List, Dict, Union, Optional, Iterator
-import torch, os 
+import torch, os, pickle
 
-from separ.parser import Parser
+from separ.parser import Parser 
 from separ.models.con.idx.model import IndexConstituencyModel
 from separ.utils import ConstituencyMetric, create_mask, acc, avg, Config, flatten, parallel
 from separ.data import PTB, AbstractTokenizer, Tokenizer, CharacterTokenizer, PretrainedTokenizer
@@ -23,8 +23,9 @@ class IndexConstituencyParser(Parser):
     PARAMS = ['rel']
     
     class Labeler:
-        def __init__(self, rel: bool = False):
+        def __init__(self, rel: bool = False, ROOT: str = 'S'):
             self.rel = rel 
+            self.ROOT = ROOT
             
         def __repr__(self) -> str:
             return f'IndexConstituencyLabeler(rel={self.rel})'
@@ -78,7 +79,7 @@ class IndexConstituencyParser(Parser):
                 if index > 0: # open new spans (LEFT, RIGHT, LABEL)
                     stack += [(i, None, None) for _ in range(index-1)]
                     stack.append((i, None, con))
-                elif index < 0: # close previous spans 
+                elif index < 0 and len(stack) > 0: # close previous spans 
                     cnt, p = 0, len(stack)-1
                     while cnt < abs(index) and p >= 0:
                         if len(stack) > 0 and stack[p][-1] is not None:
@@ -92,7 +93,7 @@ class IndexConstituencyParser(Parser):
                             stack[p] = (stack[p][0], None, con)
                             break 
                         p -= 1
-            spans = spans + [PTB.Span(i, i+1, tag) for i, tag in enumerate(leaves) if tag != '']
+            spans = sorted(spans + [PTB.Span(i, i+1, tag) for i, tag in enumerate(leaves) if tag != ''])
             return spans, all(span.LABEL is not None for span in spans) and len(stack) == 0
         
         def test(self, tree: PTB.Tree) -> bool:
@@ -153,7 +154,16 @@ class IndexConstituencyParser(Parser):
             self.CON.decode(con_pred), 
             self.LEAF.decode(tag_pred)
         )
-        return PTB.Tree.from_spans(tree.preterminals, spans).recover_unary(), well_formed
+        try:
+            rec = PTB.Tree.from_spans(tree.preterminals, spans).recover_unary()
+        except:
+            with open('tree.pickle', 'wb') as writer:
+                pickle.dump(tree, writer)
+            with open('spans.pickle', 'wb') as writer:
+                pickle.dump(spans, writer)
+            raise AssertionError
+        rec.ID = tree.ID 
+        return rec, well_formed
     
     def train_step(
         self, 

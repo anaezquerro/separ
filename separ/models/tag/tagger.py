@@ -73,7 +73,7 @@ class Tagger(Parser):
         s_tag = self.model(*inputs, *masks)
         loss = self.model.loss(s_tag, targets)
         tag_preds = self.model.predict(*inputs, *masks)
-        return dict(loss=loss), map(self._pred, sents, *[tag_pred.split(lens) for tag_pred in tag_preds])
+        return dict(loss=loss.item()), map(self._pred, sents, *[tag_pred.split(lens) for tag_pred in tag_preds])
     
     @classmethod
     def build(

@@ -303,7 +303,7 @@ class Bit6kSemanticParser(Parser):
         arc_preds, matrix_preds, well_formed = zip(*map(self.labeler.decode_postprocess, map(self.BIT.decode, bit_preds.split(lens))))
         matrix_preds = pad2D(matrix_preds)[:, 1:, 1:] # suppress arcs to head
         rel_preds = self.model.rel_pred(embed, matrix_preds, mask.sum()).split(matrix_preds.sum((-2,-1)).tolist())
-        control = dict(BIT=acc(bit_preds, bits), REL=acc(s_rel, rels), loss=loss, well_formed=avg(well_formed)*100)
+        control = dict(BIT=acc(bit_preds, bits), REL=acc(s_rel, rels), loss=loss.item(), well_formed=avg(well_formed)*100)
         return control, map(self._pred, graphs, arc_preds, rel_preds)
     
     @classmethod

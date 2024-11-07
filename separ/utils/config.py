@@ -14,10 +14,7 @@ class Config(object):
         return self.__dict__
     
     def __getattr__(self, attr):
-        try:
-            return object.__getattribute__(self, attr)
-        except AttributeError:
-            return None
+        return None
     
     def __contains__(self, item) -> bool:
         return item in self.__dict__.keys()
