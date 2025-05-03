@@ -1,7 +1,4 @@
 import os, shutil 
-import sys
-sys.path.append('../')
-from separ.data import sdp_to_conll, SDP
 
 FOLDER = 'sdp-2015'
 TREEBANKS = ['zh', 'dm', 'pas', 'psd', 'cs']
@@ -57,10 +54,5 @@ if __name__ == '__main__':
         else:
             shutil.copy(f'{FOLDER}/{treebank}/id.sdp', f'{FOLDER}/{treebank}/ood.sdp')
         split(f'{FOLDER}/{treebank}/train.sdp', pattern=('#220' if treebank != 'zh' else '#202'))
-        for sett in ['train', 'dev', 'id', 'ood']:
-            sdp = SDP.from_file(f'{FOLDER}/{treebank}/{sett}.sdp')
-            sdp.save(f'{FOLDER}/{treebank}/{sett}.sdp')
-            sdp_to_conll(sdp, postprocess=True).save(f'{FOLDER}/{treebank}/{sett}.conllu')
-            print(f'{lang}: {sett} has {len(sdp)} graphs')
     shutil.rmtree('sdp2014_2015')
-    os.system(f'tar -czvf sdp-2015.tar.gz sdp-2015')
+    # os.system(f'tar -czvf sdp-2015.tar.gz sdp-2015')

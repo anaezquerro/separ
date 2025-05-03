@@ -42,7 +42,5 @@ if __name__ == '__main__':
         parse_subsets(f'{FOLDER}/{file}')
         name, *_ = file.split('_')
         os.rename(f'{FOLDER}/{file}', f'{FOLDER}/{LANG[name.lower()]}')
-    os.system(f'tar -czvf {PATH} {FOLDER}')            
-            
-            
+    # os.system(f'tar -czvf {PATH} {FOLDER}')            
             

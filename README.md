@@ -11,37 +11,31 @@ Hi :wave: This is a [Python](https://www.python.org/) implementation for sequenc
     - $4$-bit projective  encoding ([Gómez-Rodríguez et al., 2023](https://aclanthology.org/2023.emnlp-main.393/)).
     - $7$-bit $2$-planar encoding ([Gómez-Rodríguez et al., 2023](https://aclanthology.org/2023.emnlp-main.393/)).
     - Hexa-Tagging projective encoding ([Amini et al., 2023](https://aclanthology.org/2023.acl-short.124/)).
-    - Biaffine dependency parser ([Dozat et al., 2016](https://arxiv.org/abs/1611.01734)).
+    - Biaffine dependency parser ([Dozat & Manning, 2017](https://arxiv.org/abs/1611.01734)).
 - **Semantic Dependency Parsing**:
-    - Absolute and relative indexing ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972)).
-    - Bracketing encoding ($k$-planar) ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972)).
-    - $4k$-bit encoding ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972)).
-    - $6k$-bit encoding ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972)).
-    - Biaffine semantic parser ([Dozat et al., 2017](https://aclanthology.org/P18-2077/)).
+    - Absolute and relative indexing ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972), **OFFICIAL**).
+    - Bracketing encoding ($k$-planar) ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972), **OFFICIAL**).
+    - $4k$-bit encoding ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972), **OFFICIAL**).
+    - $6k$-bit encoding ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972), **OFFICIAL**).
+    - Covington graph parser ([Covington, 2001](https://ai1.ai.uga.edu/mc/dparser/dgpacmnew.pdf)).
+    - Biaffine semantic parser ([Dozat & Manning, 2018](https://aclanthology.org/P18-2077/)).
 - **Constituency Parsing**:
     - Absolute and relative indexing ([Gómez-Rodríguez and Vilares, 2018](https://aclanthology.org/D18-1162/)).
     - Tetra-Tagging ([Kitaev and Klein, 2020](https://aclanthology.org/2020.acl-main.557/)).
 
+Please, feel free to [reach out](mailto:ana.ezquerro@udc.es) if you want to collaborate or include  additional parsers to [separ](https://github.com/anaezquerro/separ)!
+
 ## Installation 
 
-To run this code [Python >=3.8](https://www.python.org/downloads/) is required, although we recommend using [Python >=3.11](https://www.python.org/downloads/release/python-3110/) in a GPU system with NVIDIA drivers (>=535) and CUDA (>=12.4) installed. To use the official evaluation of the semantic and constituency parsers we suggest installing:
-- [semantic-dependency-parsing/toolkit](https://github.com/semantic-dependency-parsing/toolkit) at [eval/sdp-eval](eval/sdp-eval).
-- [EVALB](https://nlp.cs.nyu.edu/evalb/ ) compiled at [eval/EVALB](eval/EVALB).
+This code was tested in [Python >=3.8](https://www.python.org/downloads/), although we recommend using [Python >=3.11](https://www.python.org/downloads/release/python-3110/) in a GPU system with NVIDIA drivers (>=535) and CUDA (>=12.4) installed. Use the [requirements.txt](requirements.txt) to download the dependencies in an existing environment or the [environment.yaml](environment.yaml) to create an Anaconda environment.
 
-It is possible to disable the evaluation with the official scripts by setting the `SDP_SCRIPT` and `CON_SCRIPT` to `None` in the [separ/utils/common.py](separ/utils/common.py) script. Then, the evaluation will be performed with Python code (slight variations might occur in some cases).
-
-We provided the [environment.yaml](environment.yaml) to create an [Anaconda](https://anaconda.org/) environment as an alternative to the [requirements.txt](requirements.txt).
-
+```shell
+pip install -r requirements.txt
+```
+or
 ```shell 
 conda env create -n separ -f environment.yaml
 ```
-
-
-> [!WARNING]
-> Some functions in the code use the native [concurrent.futures](https://docs.python.org/es/3/library/concurrent.futures.html) package for asynchronous execution. The CPU multithreading acceleration is guaranteed in Linux and MacOS systems, but unexpected behaviors can be experienced in Windows, so we highly suggest using WSL virtualization for Windows users or disabling CPU parallelism setting the variable `NUM_WORKERS` to `1` in the [separ/utils/common.py](separ/utils/common.py) script.
-
-
-
 
 ## Data preparation 
 
@@ -84,41 +78,42 @@ treebanks/
         ...
         zh/
 ```
-- [parse-iwpt.py](treebanks/parse-iwpt.py): To create subfolder per language in the IWPT dataset. We grouped the different treebanks per language and concatenated at split leve to obtain a single treebank per language.
+- [parse-iwpt.py](treebanks/parse-iwpt.py): To create subfolder per language in the IWPT dataset. 
 ```
 treebanks/
     iwpt-2021/
-        ar/
+        ar-padt/
             train.conllu
             dev.conllu
             test.conllu
         ...
-        uk/
+        uk-iu/
 ```
 
 ## Usage 
 
-You can train, evaluate and predict different parser from terminal with [run.py](run.py). Each parser has a string identifier 
-that is introduced as the first argument of the [run.py](run.py) script. The following table shows the parsers available with its corresponding paper and the 
+You can train, evaluate and predict different parsers from terminal with [run.py](run.py). Each parser has a string identifier that is introduced as the first argument of the [run.py](run.py) script. The following table shows the parsers available with their corresponding paper and the 
 proper arguments that can be introduced:
 
 
 | **Identifier** | **Parser** | **Paper** | **Arguments** |
 |:---------|:-----------|:----------|:--------------|
-| `dep-idx` | Absolute and relative indexing  | [Strzyz et al. (2019)](https://aclanthology.org/N19-1077/) | `rel` |
-| `dep-pos` | PoS-tag relative indexing | [Strzyz et al. (2019)](https://aclanthology.org/N19-1077/) | `gold` |
-| `dep-bracket` | Bracketing encoding ($k$-planar) | [Strzyz et al. (2020)](https://aclanthology.org/2020.coling-main.223/) | `k` | 
-| `dep-bit4` | $4$-bit projective  encoding | [Gómez-Rodríguez et al. (2023)](https://aclanthology.org/2023.emnlp-main.393/) | `proj` |
+| `dep-idx` | Absolute and relative indexing  | [Strzyz et al. (2019)](https://aclanthology.org/N19-1077/) | `rel`$\in$`{true, false}` |
+| `dep-pos` | PoS-tag relative indexing | [Strzyz et al. (2019)](https://aclanthology.org/N19-1077/) |  |
+| `dep-bracket` | Bracketing encoding ($k$-planar) | [Strzyz et al. (2020)](https://aclanthology.org/2020.coling-main.223/) | `k`$\in\mathbb{N}$ | 
+| `dep-bit4` | $4$-bit projective  encoding | [Gómez-Rodríguez et al. (2023)](https://aclanthology.org/2023.emnlp-main.393/) | `proj`$\in$`{None, head, head+path, path}` |
 | `dep-bit7` |  $7$-bit $2$-planar encoding | [Gómez-Rodríguez et al. (2023)](https://aclanthology.org/2023.emnlp-main.393/) | | 
-| `dep-eager` | Arc-Eager system | [Nivre and Fernández-González (2002)](https://aclanthology.org/J14-2002/) | `stack`, `buffer`, `proj` | 
-| `dep-biaffine` | Biaffine dependency parser | [Dozat et al. (2016)](https://arxiv.org/abs/1611.01734) | |
-| `dep-hexa`   | Hexa-Tagging | [Amini et al. (2023)](https://aclanthology.org/2023.acl-short.124/) | `proj` |
-| `con-idx` | Absolute and relative indexing  | [Gómez-Rodríguez and Vilares (2018)](https://aclanthology.org/D18-1162/) | `rel` | 
+| `dep-eager` | Arc-Eager system | [Nivre and Fernández-González (2002)](https://aclanthology.org/J14-2002/) | `stack`$\in\mathbb{N}$, `buffer`$\in\mathbb{N}$, `proj`$\in$`{None, head, head+path, path}` | 
+| `dep-biaffine` | Biaffine dependency parser | [Dozat & Manning (2017)](https://arxiv.org/abs/1611.01734) | |
+| `dep-hexa`   | Hexa-Tagging | [Amini et al. (2023)](https://aclanthology.org/2023.acl-short.124/) | `proj`$\in$`{None, head, head+path, path}` |
+| `con-idx` | Absolute and relative indexing  | [Gómez-Rodríguez and Vilares (2018)](https://aclanthology.org/D18-1162/) | `rel`$\in$`{true, false}` | 
 | `con-tetra` | Tetra-Tagging | [Kitaev and Klein (2020)](https://aclanthology.org/2020.acl-main.557/) | |
-| `sdp-idx` | Absolute and relative indexing  | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `rel` | 
-| `sdp-bracket` | Bracketing encoding ($k$-planar) | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k` | 
-| `sdp-bit4k` | $4k$-bit encoding | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k` | 
-| `sdp-bit6k` | $6k$-bit encoding | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k` | 
+| `sdp-idx` | Absolute and relative indexing  | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `rel`$\in$`{true, false}` | 
+| `sdp-bracket` | Bracketing encoding ($k$-planar) | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | 
+| `sdp-bit4k` | $4k$-bit encoding | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | 
+| `sdp-bit6k` | $6k$-bit encoding | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | 
+| `sdp-cov`| Covington | [Covington (2001)](https://ai1.ai.uga.edu/mc/dparser/dgpacmnew.pdf) | |
+| `sdp-biaffine` | Biaffine graph parser | [Dozat & Manning (2018)](https://aclanthology.org/P18-2077/) | |
 
 
 ### Training
@@ -126,35 +121,42 @@ To train a parser from scratch, the [run.py](run.py) script should follow this s
 
 ```shell
 python3 run.py <parser-identifier> <specific-args> \
-    -p <path> -c <conf> -d <device> (--load --seed <seed> --proj <proj-mode>) 
-    train --train <train-path> --dev <dev-path> --test <test-paths> (--num-workers <num-workers>)
+    -c <conf> -d <device> (--load <pt-path> --seed <seed>) \
+    train --train <train-path> --dev <dev-path> --test <test-paths> \
+    -o <output-folder> (--run-name <run-name>)
 ```
 
 where:
 - `<parser-identifier>` is the identifier specified in the table above (e.g. `dep-idx`),
 - `<specific-args>` are the specific arguments of each parser (e.g. `--rel` for `dep-idx`),
-- `<path>` is a folder to store the training results (including the `parser.pt` file),
 - `<conf>` is the model configuration file (see some examples in [configs](configs/) folder),
-- `<device>` is the CUDA integer device (e.g. `0`),
+- `<device>` is the CUDA integer device,
 - `<train-path>`, `<dev-path>` and `<test-paths>` are the paths to the training, development and test sets (multiple test paths are possible).
+- `<output-folder>` is a folder to store the training results (including the `parser.pt` file).
 
 And optionally:
-- `--load`: Whether to load the parser from an existing `parser.pt` file. If it is specified, the `<path>` argument should be a path to a file, not a folder.
-- `--seed`: Specify other seed value. By default, this code always uses the seed  `123`. The default value can be fixed in the [trasepar/utils/common.py](trasepar/utils/common.py) script. 
-- `--num-workers`: Number of threads to also parallelize worload in CPU. By default is set to 1.
+- `<pt-path>`: Whether to load the parser from an existing `.pt` file. 
+- `<seed>`: Specify other seed value. By default, this code always uses the seed  `123`.
+- `<run-name>`: [wandb](https://wandb.ai/site/) identifier.
+
+**Distributed training**: This library supports distributed training by setting the argument `-d=-1` and running the script [run.py](run.py) with `torchrun`. Use the `CUDA_VISIBLE_DEVICES` variable to hide specific GPUs (by default, `-d=-1` will use all GPUs available). 
+
+**W&B logging**: This library also allows model debugging with [wandb](https://wandb.ai/site/). Please. follow [these instructions](https://docs.wandb.ai/quickstart/) to create and account and connect it with your local installation. Note that [separ](https://github.com/anaezquerro/separ) still works without a [wandb](https://wandb.ai/site/) account.
+
+
 
 ### Evaluation
 Evaluation with a trained parser is also performed with the [run.py](run.py) script.
 
 ```shell 
-python3 run.py <parser-identifier>  -p <path> -d <device> eval <input> \
-    (--output <output> --batch-size <batch-size> --num-workers <num-workers>)
+python3 run.py <parser-identifier> <specific-args> --load <pt-path> -c <conf> -d <device> 
+    eval <input> (--output <output> --batch-size <batch-size>)
 ```
 
 where:
 - `<parser-identifier>` is the identifier specified in the table above (e.g. `dep-idx`),
 - `<specific-args>` are the specific arguments of each parser (e.g. `--rel` for `dep-idx`),
-- `<path>` is the path where the parser has been stored (e.g. the `parser.pt` file created after trianing).
+- `<pt-path>` is the path where the parser has been stored (e.g. the `parser.pt` file created after training).
 - `<conf>` is the model configuration file (see some examples in [configs](configs/) folder),
 - `<device>` is the CUDA integer device (e.g. `0`),
 - `<input>` is the annotated file to perform the evaluation.
@@ -162,18 +164,17 @@ where:
 And optionally:
 - `<output>`: Folder to store the result metric.
 - `<batch-size>`: Inference batch size. By default is set to 100.
-- `<num-workers>`: Number of threads to also parallelize worload in CPU. By default is set to 1.
 
 ### Prediction
 Prediction with a trained parser is also conducted from the [run.py](run.py) script. 
 ```shell 
-python3 run.py <parser-identifier> -p <path> -d <device> predict <input> <output> \
-    (--batch-size <batch-size> --num-workers <num-workers>)
+python3 run.py <parser-identifier> <specific-args> --load <pt-path> -c <conf> -d <device> \
+    predict <input> <output> (--batch-size <batch-size>)
 ```
 where:
 - `<parser-identifier>` is the identifier specified in the table above (e.g. `dep-idx`),
 - `<specific-args>` are the specific arguments of each parser (e.g. `--rel` for `dep-idx`),
-- `<path>` is the path where the parser has been stored (e.g. the `parser.pt` file created after trianing).
+- `<pt-path>` is the path where the parser has been stored (e.g. the `parser.pt` file created after training).
 - `<conf>` is the model configuration file (see some examples in [configs](configs/) folder),
 - `<device>` is the CUDA integer device (e.g. `0`),
 - `<input>` is the annotated file to perform the evaluation.
@@ -181,7 +182,6 @@ where:
 
 And optionally:
 - `<batch-size>`: Inference batch size. By default is set to 100.
-- `<num-workers>`: Number of threads to also parallelize workload in CPU. By default is set to 1.
 
 
 ## Examples
