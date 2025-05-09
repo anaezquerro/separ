@@ -9,11 +9,11 @@ from .hexa import *
 
 DEP_PARSERS = [
     IndexDependencyParser,
-    PoSDependencyParser, 
+    PoSDependencyParser,
     BracketDependencyParser,
-    Bit4DependencyParser, 
-    Bit7DependencyParser, 
-    HexaTaggingDependencyParser, 
+    Bit4DependencyParser,
+    Bit7DependencyParser,
+    HexaTaggingDependencyParser,
     ArcEagerDependencyParser,
     BiaffineDependencyParser, 
 ]

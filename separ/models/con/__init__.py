@@ -3,5 +3,5 @@ from .tetra import *
 
 CON_PARSERS = [
     IndexConstituencyParser, 
-    TetraTaggingConstituencyParser,
+    TetraTaggingConstituencyParser
     ]

@@ -236,10 +236,8 @@ class HexaTaggingDependencyParser(DependencySLParser):
         con_tkz.train(cons)
         rel_tkz.train(rels)
         
-        rel_conf = rel_tkz.conf 
-        rel_conf.special_indices.append(rel_tkz.vocab['root'])
         return cls(
             input_tkzs, [hexa_tkz, fence_tkz, con_tkz, rel_tkz], 
-            [enc_conf, *in_confs, hexa_tkz.conf, fence_tkz.conf, con_tkz.conf, rel_conf], 
+            [enc_conf, *in_confs, hexa_tkz.conf, fence_tkz.conf, con_tkz.conf, rel_tkz.conf], 
             proj, device 
         )

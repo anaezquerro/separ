@@ -85,28 +85,28 @@ class CovingtonSemanticModel(Model):
             Tuple[torch.Tensor, torch.Tensor]: Action and relation scores.
         """
         # contextualized embeddings with the GCN 
-        # batch_size = embed.shape[0]
-        # states = []
-        # for i in range(0, pointers.shape[0], batch_size):
-        #     points = pointers[i:(i+batch_size)]
-        #     states.append(torch.cat([
-        #         # arc states
-        #         self.state(embed[points[:, 0]], compute_state(points, matrices))[:, :-1].mean(dim=1),
-        #         embed[points[:, 0], points[:, 1]], # first pointer
-        #         embed[points[:, 0], points[:, 2]] # second pointer
-        #     ], dim=-1))
-        # state = torch.cat(states)
-        # return self.action(state), self.rel(state)
-        
-        state = torch.cat([
+        batch_size = embed.shape[0]
+        states = []
+        for i in range(0, pointers.shape[0], batch_size):
+            points = pointers[i:(i+batch_size)]
+            states.append(torch.cat([
                 # arc states
-                self.state(embed[pointers[:, 0]], compute_state(pointers, matrices))[:, :-1].mean(dim=1),
-                embed[pointers[:, 0], pointers[:, 1]], # first pointer
-                embed[pointers[:, 0], pointers[:, 2]] # second pointer
-            ], dim=-1)
-        s_action = self.action(state)
-        s_rel = self.rel(state)
-        return s_action, s_rel
+                self.state(embed[points[:, 0]], compute_state(points, matrices))[:, :-1].mean(dim=1),
+                embed[points[:, 0], points[:, 1]], # first pointer
+                embed[points[:, 0], points[:, 2]] # second pointer
+            ], dim=-1))
+        state = torch.cat(states)
+        return self.action(state), self.rel(state)
+        
+        # state = torch.cat([
+        #         # arc states
+        #         self.state(embed[pointers[:, 0]], compute_state(pointers, matrices))[:, :-1].mean(dim=1),
+        #         embed[pointers[:, 0], pointers[:, 1]], # first pointer
+        #         embed[pointers[:, 0], pointers[:, 2]] # second pointer
+        #     ], dim=-1)
+        # s_action = self.action(state)
+        # s_rel = self.rel(state)
+        # return s_action, s_rel
     
     def loss(
         self,

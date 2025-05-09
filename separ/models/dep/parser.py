@@ -60,12 +60,12 @@ class DependencySLParser(Tagger):
         
         def postprocess(self, adjacent: torch.Tensor, rels: List[str]) -> List[Arc]:
             adjacent = adjacent.clone()
-            arcs = [Arc(head, dep, rels[dep-1] if head != 0 else 'root') for dep, head in adjacent.nonzero().tolist()]
+            arcs = [Arc(head, dep, rels[dep-1]) for dep, head in adjacent.nonzero().tolist()]
             no_assigned = sorted(set((adjacent.sum(-1) == 0).nonzero().flatten().tolist()[1:]))
             for dep in no_assigned:
                 heads = candidates_no_cycles(adjacent, dep)
                 head = heads.pop(0)
-                arcs.append(Arc(head, dep, rels[dep-1] if head != 0 else 'root'))
+                arcs.append(Arc(head, dep, rels[dep-1]))
                 adjacent[dep, head] = True
             return sorted(arcs)
     
@@ -84,7 +84,7 @@ class DependencySLParser(Tagger):
         masks: List[torch.Tensor], 
         trees: List[CoNLL.Tree]
     ) -> Iterator[CoNLL.Tree]:
-        preds, _ = zip(*super().pred_step(self.model, inputs, masks, trees))
+        preds, _ = zip(*super().pred_step(inputs, masks, trees))
         return preds  
     
     @torch.no_grad()

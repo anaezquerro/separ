@@ -25,16 +25,19 @@ def split_ptb(line: str) -> Iterator[str]:
     item = ''
     for char in line.strip():
         if char == '(' or char == ')':
-            if len(item) > 0:
-                yield item 
-            item = ''
+            if len(item.strip()) > 0:
+                pos, *word = item.split()
+                yield pos 
+                if len(word) > 0:
+                    yield  ' '.join(word)
             yield char
-        elif char == ' ':
-            if len(item) > 0:
-                yield item
-                item = ''
+            item = ''
+        # elif char == ' ':
+        #     if len(item) > 0:
+        #         yield item
+        #         item = ''
         else:
-            item += char 
+            item += char
             
 
 class PTB(Dataset):
@@ -231,6 +234,11 @@ class PTB(Dataset):
                         deps.append(dep.debinarize())
                 return PTB.Tree(tree.label, deps)
                         
+        def rebuild(self, field: str, values: List[str]) -> PTB.Tree:
+            if field == 'POS':
+                return self.rebuild_preterminals(values)
+            else:
+                raise NotImplementedError
             
         def rebuild_preterminals(self, tags: List[str]) -> PTB.Tree:
             if self.is_preterminal():
@@ -447,7 +455,7 @@ class PTB(Dataset):
                     stack.append(item)
             assert len(stack) == 1, f'\n{len(stack)}\n' + '\n'.join(map(repr, stack))
             tree = stack[0]
-            assert line == tree.format(), f'{line}\n{tree.format()}'
+            assert line == tree.format(), f'\n{line}\n{tree.format()}'
             # recover = tree.collapse_unary().recover_unary()
             # assert tree == recover, f'Unary recovery is not correct\n{tree}\n{tree.collapse_unary()}\n{recover}'
             tree.ID = ID 

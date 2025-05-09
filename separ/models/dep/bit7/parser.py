@@ -11,6 +11,7 @@ from separ.models.dep.parser import DependencySLParser
 class Bit7DependencyParser(Bit4DependencyParser):
     """7-bit Dependency Parser from [Gómez-Rodríguez et al., 2023](https://aclanthology.org/2023.emnlp-main.393/)."""
     NAME = 'dep-bit7'
+    PARAMS = []
 
     class Labeler(DependencySLParser.Labeler):
         """7-bit encoding for 2-planar dependency trees.
@@ -32,11 +33,11 @@ class Bit7DependencyParser(Bit4DependencyParser):
         def __repr__(self):
             return f'Bit7DependencyLabeler()'
         
-        def preprocess(self, graph: CoNLL.Graph) -> Tuple[Set[int], Set[int], Set[int], Set[int]]:
+        def preprocess(self, graph: CoNLL.Tree) -> Tuple[Set[int], Set[int], Set[int], Set[int]]:
             """Obtain the dependants of each plane.
 
             Args:
-                graph (CoNLL.Graph): Input graph.
+                graph (CoNLL.Tree): Input graph.
 
             Returns:
                 Tuple[List[int], List[int], List[int], List[int]]:: Dependants and heads of plane 1 and plane 2.
@@ -51,7 +52,7 @@ class Bit7DependencyParser(Bit4DependencyParser):
             return set(arc.DEP for arc in plane1), set(arc.HEAD for arc in plane1),\
                 set(arc.DEP for arc in plane2), set(arc.HEAD for arc in plane2)
                 
-        def encode(self, graph: CoNLL.Graph) -> Tuple[List[str], List[str]]:
+        def encode(self, graph: CoNLL.Tree) -> Tuple[List[str], List[str]]:
             deps1, heads1, deps2, heads2 = self.preprocess(graph)
             labels = [[False for _ in range(self.NUM_BITS)] for _ in range(len(graph))]
             for idep, head in enumerate(graph.HEAD):
@@ -136,7 +137,7 @@ class Bit7DependencyParser(Bit4DependencyParser):
                     right2.append(idep+1)
             return self.postprocess(adjacent, rels), well_formed and (len(right1 + left1 + right2 + left2) == 0) and (adjacent.sum() == len(bits))
         
-        def test(self, graph: CoNLL.Graph) -> bool:
+        def test(self, graph: CoNLL.Tree) -> bool:
             return super().test(graph.planarize(2))
             
     def __init__(
@@ -195,7 +196,4 @@ class Bit7DependencyParser(Bit4DependencyParser):
         bits, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
         bit_tkz.train(bits)
         rel_tkz.train(rels)
-        
-        rel_conf = rel_tkz.conf 
-        rel_conf.special_indices.append(rel_tkz.vocab['root'])
-        return cls(input_tkzs, [bit_tkz, rel_tkz], [enc_conf, *in_confs, bit_tkz.conf, rel_conf], device)
+        return cls(input_tkzs, [bit_tkz, rel_tkz], [enc_conf, *in_confs, bit_tkz.conf, rel_tkz.conf], device)

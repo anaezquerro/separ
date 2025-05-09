@@ -80,6 +80,10 @@ class CoNLL(Dataset):
             return cls(nodes, arcs, ID, annotations)
         
         @property
+        def HEAD(self) -> List[int]:
+            return [node.HEAD for node in self.nodes]
+        
+        @property
         def heads(self) -> np.ndarray:
             return np.array(self.HEAD)
         

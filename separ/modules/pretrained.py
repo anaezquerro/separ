@@ -29,7 +29,7 @@ class PretrainedEmbedding(nn.Module):
         self.embed.resize_token_embeddings(vocab_size)
         self.embed_size = self.embed.config.hidden_size
         self.pad_index = pad_index
-        self.max_len = max_len(pretrained, self.DEFAULT_MAX_LEN)
+        self.max_len = 512
         
     def __repr__(self) -> str:
         return f'PretrainedEmbedding(pretrained={self.pretrained}, embed_size={self.embed_size}, finetune={self.finetune})'

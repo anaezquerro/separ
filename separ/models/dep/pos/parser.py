@@ -111,8 +111,6 @@ class PoSDependencyParser(DependencySLParser):
         index_tkz.train(indexes)
         rel_tkz.train(rels)
         tag_tkz.train(tags)
-        rel_conf = rel_tkz.conf 
-        rel_conf.special_indices.append(rel_tkz.vocab['root'])
-        return cls(input_tkzs, [index_tkz, rel_tkz, tag_tkz], [enc_conf, *in_confs, index_tkz.conf, rel_conf, tag_tkz.conf], device)
+        return cls(input_tkzs, [index_tkz, rel_tkz, tag_tkz], [enc_conf, *in_confs, index_tkz.conf, rel_tkz.conf, tag_tkz.conf], device)
         
             

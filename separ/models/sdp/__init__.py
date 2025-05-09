@@ -6,6 +6,6 @@ from .biaffine import BiaffineSemanticParser
 from .cov import CovingtonSemanticParser
 
 SDP_PARSERS = [
-    IndexSemanticParser, BracketSemanticParser, Bit4kSemanticParser, Bit6kSemanticParser,
+    IndexSemanticParser, BracketSemanticParser, Bit4kSemanticParser, Bit6kSemanticParser, 
     BiaffineSemanticParser, CovingtonSemanticParser
 ]

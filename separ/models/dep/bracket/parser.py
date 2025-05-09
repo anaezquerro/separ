@@ -164,6 +164,4 @@ class BracketDependencyParser(DependencySLParser):
         brackets, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
         bracket_tkz.train(brackets)
         rel_tkz.train(rels)
-        rel_conf = rel_tkz.conf 
-        rel_conf.special_indices.append(rel_tkz.vocab['root'])
-        return cls(input_tkzs, [bracket_tkz, rel_tkz], [enc_conf, *in_confs, bracket_tkz.conf, rel_conf], k, device)
+        return cls(input_tkzs, [bracket_tkz, rel_tkz], [enc_conf, *in_confs, bracket_tkz.conf, rel_tkz.conf], k, device)

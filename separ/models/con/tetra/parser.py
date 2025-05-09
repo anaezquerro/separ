@@ -100,6 +100,7 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
         if not tree.transformed:
             tree.TETRA, tree.FENCE, tree.CON, tree.LEAF = self.lab.encode(tree)
             tree.transformed = True 
+        return tree 
             
     def _pred(self, tree: PTB.Tree, *preds: List[torch.Tensor]) -> Tuple[PTB.Tree, bool]:
         rec, well_formed = self.lab.decode(*[tkz.decode(pred) for pred, tkz in zip(preds, self.target_tkzs)], tree.FORM)

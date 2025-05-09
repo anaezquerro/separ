@@ -43,21 +43,19 @@ class BiaffineDependencyParser(Parser):
     
     def train_step(
         self, 
-        model: BiaffineDependencyModel,
         inputs: List[torch.Tensor], 
         masks: List[torch.Tensor],
         targets: List[torch.Tensor], 
     ) -> Tuple[torch.Tensor, ControlMetric]:
         arcs, rels = targets
-        s_arc, s_rel = model(inputs[0], inputs[1:])
-        loss = model.loss(s_arc, s_rel, *targets, masks[0])
+        s_arc, s_rel = self.model(inputs[0], inputs[1:])
+        loss = self.model.loss(s_arc, s_rel, *targets, masks[0])
         arcs = arcs.to(torch.bool)
         return loss, ControlMetric(ARC=fscore(s_arc, arcs), REL=acc(s_rel[arcs], rels[arcs]), loss=loss.detach())
     
     @torch.no_grad()
     def eval_step(
         self,
-        model: BiaffineDependencyModel,
         inputs: List[torch.Tensor],
         masks: List[torch.Tensor],
         targets: List[torch.Tensor],
@@ -65,25 +63,24 @@ class BiaffineDependencyParser(Parser):
     ) -> Tuple[ControlMetric, DependencyMetric]:
         arcs, rels, mask0, _ = *targets, *masks
         lens = mask0.sum(-1).tolist()
-        loss, head_preds, rel_preds = model.control(inputs[0], inputs[1:], *targets, *masks)
+        loss, head_preds, rel_preds = self.model.control(inputs[0], inputs[1:], *targets, *masks)
         preds = list(map(self._pred, trees, head_preds.split(lens), rel_preds.split(lens)))
         return ControlMetric(loss=loss.detach(), ARC=acc(head_preds, arcs[mask0].argmax(-1)),  REL=acc(rel_preds, rels[arcs.to(torch.bool)])), \
             DependencyMetric(preds, trees)
             
     def _pred(self, tree: CoNLL.Tree, head_pred: torch.Tensor, rel_pred: torch.Tensor) -> CoNLL.Tree:
-        arcs = [Arc(head, i+1, rel if head != 0 else 'root') for i, (head, rel) in enumerate(zip(head_pred.tolist(), self.REL.decode(rel_pred)))]
+        arcs = [Arc(head, i+1, rel) for i, (head, rel) in enumerate(zip(head_pred.tolist(), self.REL.decode(rel_pred)))]
         return tree.rebuild_from_arcs(arcs)
     
     @torch.no_grad()
     def pred_step(
         self,
-        model: BiaffineDependencyModel,
         inputs: List[torch.Tensor], 
         masks: List[torch.Tensor], 
         trees: List[CoNLL.Tree]
     ) -> Iterator[CoNLL.Tree]:
         lens = masks[0].sum(-1).tolist()
-        head_preds, rel_preds = model.predict(inputs[0], inputs[1:], *masks)
+        head_preds, rel_preds = self.model.predict(inputs[0], inputs[1:], *masks)
         return map(self._pred, trees, head_preds.split(lens), rel_preds.split(lens))
 
     @classmethod
@@ -125,7 +122,5 @@ class BiaffineDependencyParser(Parser):
                 
         rel_tkz = TargetTokenizer('REL')
         rel_tkz.train([arc.REL for tree in data for arc in tree.arcs])
-        rel_conf = rel_tkz.conf 
-        rel_conf.special_indices.append(rel_tkz.vocab['root'])
-        return cls(input_tkzs, [rel_tkz], [enc_conf, *in_confs, rel_conf], device)
+        return cls(input_tkzs, [rel_tkz], [enc_conf, *in_confs, rel_tkz.conf], device)
 

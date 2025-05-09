@@ -5,7 +5,6 @@ from .enh import EnhancedCoNLL
 from .sampler import TokenizedBatchSampler
 from .struct import *
 from .tkz import *
-import os
 
 
 DATASET = [CoNLL, PTB, SDP, EnhancedCoNLL]

@@ -110,10 +110,7 @@ class IndexDependencyParser(DependencySLParser):
         indexes, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
         index_tkz.train(indexes)
         rel_tkz.train(rels)
-            
-        rel_conf = rel_tkz.conf 
-        rel_conf.special_indices.append(rel_tkz.vocab['root'])
-        return cls(input_tkzs, [index_tkz, rel_tkz], [enc_conf, *in_confs, index_tkz.conf, rel_conf], rel, device)
+        return cls(input_tkzs, [index_tkz, rel_tkz], [enc_conf, *in_confs, index_tkz.conf, rel_tkz.conf], rel, device)
         
         
 
