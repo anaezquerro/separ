@@ -198,40 +198,31 @@ class PTB(Dataset):
             else:
                 return PTB.Tree(self.label, deps=[dep.recover_unary() for dep in self.deps])
             
-        def binarize(self) -> PTB.Tree:
+        def binarize(self, side: int = 1, label: str = BINARY) -> PTB.Tree:
             if self.is_preterminal() or self.is_terminal():
                 return self.copy()
             elif len(self.deps) == 1:
                 dep = self.deps[0]
-                return PTB.Tree(self.label+self.UNARY+dep.label, deps=dep.deps).binarize()
+                return PTB.Tree(self.label+self.UNARY+dep.label, deps=dep.deps).binarize(side, label)
             elif len(self.deps) == 2:
-                return PTB.Tree(self.label, [d.binarize() for d in self.deps])
+                return PTB.Tree(self.label, [d.binarize(side, label) for d in self.deps])
             else:
-                n = int(len(self.deps)/2+0.5)
-                deps = [d.copy().binarize() for d in self.deps]
-                if len(deps[:n]) != 1:
-                    left = PTB.Tree(self.BINARY, deps=deps[:n])
+                if side == 1:
+                    return PTB.Tree(self.label, deps=[self.deps[0].binarize(side), PTB.Tree(label, deps=self.deps[1:]).binarize(side, label)])
                 else:
-                    left = deps[n-1]
-                if len(deps[n:]) != 1:
-                    right = PTB.Tree(self.BINARY, deps=deps[n:])
-                else:
-                    right = deps[-1]
-                left = left.binarize()
-                right = right.binarize()
-                return PTB.Tree(self.label, [left, right])
+                    return PTB.Tree(self.label, deps=[PTB.Tree(label, self.deps[:-1]).binarize(side, label), self.deps[-1].binarize(side, label)])
                 
-        def debinarize(self) -> PTB.Tree:
+        def debinarize(self, label: str = BINARY) -> PTB.Tree:
             if self.is_preterminal() or self.is_terminal():
                 return self.recover_unary()
             else:
                 tree = self.recover_unary()
                 deps = []
                 for dep in tree.deps:
-                    if dep.label == self.BINARY:
-                        deps += dep.debinarize().deps
+                    if dep.label == label:
+                        deps += dep.debinarize(label).deps
                     else:
-                        deps.append(dep.debinarize())
+                        deps.append(dep.debinarize(label))
                 return PTB.Tree(tree.label, deps)
                         
         def rebuild(self, field: str, values: List[str]) -> PTB.Tree:

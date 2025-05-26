@@ -2,11 +2,10 @@
 
 This document provides examples training, evaluating and predicting with constituency parsers. All files passed through input arguments to load data are **PTB bracket files** (see [docs/sample.ptb](docs/sample.ptb) for an example).
 
-
-| **Identifier** | **Parser** | **Paper** | **Arguments** |
-|:---------|:-----------|:----------|:--------------|
-| `con-idx` | Absolute and relative indexing  | [Gómez-Rodríguez and Vilares (2018)](https://aclanthology.org/D18-1162/) | `rel`$\in$`{true, false}` | 
-| `con-tetra` | Tetra-Tagging | [Kitaev and Klein (2020)](https://aclanthology.org/2020.acl-main.557/) | |
+| **Identifier** | **Parser** | **Paper** | **Arguments** | **Default** | 
+|:---------|:-----------|:----------|:--------------|:------------------|
+| `con-idx` | Absolute and relative indexing  | [Gómez-Rodríguez and Vilares (2018)](https://aclanthology.org/D18-1162/) | `rel`$\in$`{true, false}` |  `false` | 
+| `con-tetra` | Tetra-Tagging | [Kitaev and Klein (2020)](https://aclanthology.org/2020.acl-main.557/) | | | 
 
 
 

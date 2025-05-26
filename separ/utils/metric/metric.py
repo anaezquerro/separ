@@ -52,8 +52,7 @@ class Metric:
         return any(getattr(self, k1) > getattr(other, k2) for k1, k2 in zip(self.KEY_METRICS, other.KEY_METRICS))
 
     def save(self, path: str):
-        with open(path, 'wb') as writer:
-            pickle.dump(self.to('cpu'), writer)
+        torch.save(self, path)
             
     def values(self, scale: float = 1) -> List[float]:
         return [getattr(self, name)*scale for name in self.METRICS]
@@ -68,9 +67,12 @@ class Metric:
     
     @classmethod
     def load(cls, path: str) -> Metric:
-        with open(path, 'rb') as reader:
-            m = pickle.load(reader)
-        # m = torch.load(path, map_location=torch.device('cpu'), weights_only=False)
+        try:
+            m = torch.load(path, map_location=torch.device('cpu'), weights_only=False)
+        except RuntimeError:
+            with open(path, 'rb') as reader:
+                m = pickle.load(reader)
+            torch.save(m, path)
         return m
     
     def sync(self) -> Metric:

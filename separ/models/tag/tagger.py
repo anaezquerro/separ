@@ -33,7 +33,7 @@ class Tagger(Parser):
         inputs = [tkz.batch_encode(sens, pin=False) for tkz in self.input_tkzs]
         targets = [tkz.batch_encode(sens, mode='cat', pin=False) for tkz in self.target_tkzs]
         mask = get_mask(list(map(len, sens)))
-        return inputs, [mask], targets, sens 
+        return inputs, [mask.clone() for _ in targets], targets, sens 
     
     def train_step(
         self,
@@ -65,11 +65,10 @@ class Tagger(Parser):
         masks: List[torch.Tensor],
         sens: List[Sentence]
     ) -> Iterable[Sentence]:
-        words, *feats, mask = *inputs, *masks
-        scores = self.model(words, feats, mask)
+        scores = self.model(inputs[0], inputs[1:], *masks)
         preds = self.model.predict(scores)
-        lens = mask.sum(-1).tolist()
-        return map(self._pred, sens, *[pred.split(lens) for pred in preds])
+        preds = [pred.split(mask.sum(-1).tolist()) for pred, mask in zip(preds, masks)]
+        return map(self._pred, sens, *preds)
             
     def _pred(self, sen: Sentence, *preds: List[torch.Tensor]) -> Sentence:
         for tkz, pred in zip(self.target_tkzs, preds):

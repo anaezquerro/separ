@@ -1,10 +1,11 @@
 from __future__ import annotations
 from typing import List, Union, Tuple, Optional
 from torch.optim import AdamW, Optimizer
-import torch, os, logging, time, wandb 
+import torch, os, logging, time, wandb, shutil
 from argparse import ArgumentParser
 from torch.utils.data import DataLoader, Sampler
 from torch import nn 
+import numpy as np 
 
 from separ.model import Model 
 from separ.utils import Config, to, ControlMetric, Metric, logger, bar, filename, save 
@@ -35,6 +36,7 @@ class Parser:
         self.model = self.MODEL(*model_confs).to(device)
         self.epochs = 1
         self.device = device
+        self.no_improv = [0, 0]
             
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({", ".join(f"{param}={getattr(self, param)}" for param in self.PARAMS)})'
@@ -107,6 +109,8 @@ class Parser:
         parser.model.load_state_dict(parser.state)
         delattr(parser, 'state')
         parser.device = device
+        if 'no_improv' not in dir(parser):
+            parser.no_improv = [0, 0]
         return parser 
     
     def load_state(self, path: str):
@@ -158,7 +162,7 @@ class Parser:
             run = wandb.init(project='trasepar', name=run_name, config={'server': os.uname()[1], 'parser': repr(self), 'data': train.path})
         optimizer = self.OPTIMIZER(self.model.parameters(), lr=lr)
         loader, sampler = self.loader(train, batch_size=batch_size, shuffle=True)
-        best_metric, best_loss, train_improv, dev_improv = self.METRIC, torch.inf, train_patience, dev_patience 
+        best_metric, best_loss = self.METRIC, torch.inf
         history = []
         for epoch in range(self.epochs, epochs+1):
             debug = self.epoch(epoch, optimizer, loader, sampler, epochs, log=log, **kwargs)
@@ -166,30 +170,31 @@ class Parser:
             # validation step 
             dev_metric = self.evaluate(data=dev, batch_size=batch_size, output_folder=output_folder, log=log)
             # check if validation improves 
+            self.save(f'{output_folder}/parser.pt')
             if dev_metric.improves(best_metric):
                 # all ranks should update best metrics
                 best_metric = dev_metric 
-                dev_improv = dev_patience
-                self.save(f'{output_folder}/parser.pt')
+                self.no_improv[1] = 0
+                shutil.copy(f'{output_folder}/parser.pt', f'{output_folder}/best.pt')
                 if log:
                     log.debug('(improved)')
             else:
-                dev_improv -= 1
+                self.no_improv[1] += 1
             history.append((debug, dev_metric))
             if log:
                 run.log({'train/loss': debug.loss} | {f'dev/{metric}': value for metric, value in dev_metric.items(scale=100)})
                 
             if best_loss > debug.loss:
                 best_loss = debug.loss 
-                train_improv = train_patience
+                self.no_improv[0] = 0
             else:
-                train_improv -= 1 
+                self.no_improv[0] +=1
                 
-            if train_improv == 0:
+            if self.no_improv[0] == train_patience:
                 if log:
                     log.warning('No more improvement in the train set')
                 break
-            if dev_improv == 0:
+            if self.no_improv[1] == dev_patience:
                 if log:
                     log.warning('No more improvement in the dev set')
                 break 
@@ -197,10 +202,13 @@ class Parser:
                 if log:
                     log.warning('Zero loss reached')
                 break 
+
         
-        self.trained = True 
         torch.cuda.empty_cache()
-        self.load_state(f'{output_folder}/parser.pt')
+        self.load_state(f'{output_folder}/best.pt')
+        self.trained = True 
+        self.save(f'{output_folder}/parser.pt')
+        os.remove(f'{output_folder}/best.pt')
         
         # predict test sets
         for _test in test:
@@ -231,6 +239,8 @@ class Parser:
         with bar(desc=f'train (epoch-{epoch})', total=sampler.num_sens, leave=False) as pbar:
             for i, (inputs, masks, targets, sens) in enumerate(loader):
                 loss, _debug = self.train_step(*to(self.device, inputs, masks, targets))
+                if loss.isnan():
+                    continue 
                 (loss/steps).backward()
                 if i % steps == 0 or (i+1) == len(loader):
                     optimizer.step()

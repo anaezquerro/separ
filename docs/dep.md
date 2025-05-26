@@ -2,17 +2,17 @@
 
 This document provides examples training, evaluating and predicting with dependency parsers. All files passed through input arguments to load data are **CoNLL files**. 
 
-| **Identifier** | **Parser** | **Paper** | **Arguments** |
-|:---------|:-----------|:----------|:--------------|
-| `dep-idx` | Absolute and relative indexing  | [Strzyz et al. (2019)](https://aclanthology.org/N19-1077/) | `rel`$\in$`{true, false}` |
-| `dep-pos` | PoS-tag relative indexing | [Strzyz et al. (2019)](https://aclanthology.org/N19-1077/) |  |
-| `dep-bracket` | Bracketing encoding ($k$-planar) | [Strzyz et al. (2020)](https://aclanthology.org/2020.coling-main.223/) | `k`$\in\mathbb{N}$ | 
-| `dep-bit4` | $4$-bit projective  encoding | [Gómez-Rodríguez et al. (2023)](https://aclanthology.org/2023.emnlp-main.393/) | `proj`$\in$`{None, head, head+path, path}` |
+| **Identifier** | **Parser** | **Paper** | **Arguments** | **Default** | 
+|:---------|:-----------|:----------|:--------------|:------------------|
+| `dep-idx` | Absolute and relative indexing  | [Strzyz et al. (2019)](https://aclanthology.org/N19-1077/) | `rel`$\in$`{true, false}` | `false` | 
+| `dep-pos` | PoS-tag relative indexing | [Strzyz et al. (2019)](https://aclanthology.org/N19-1077/) |  | | 
+| `dep-bracket` | Bracketing encoding ($k$-planar) | [Strzyz et al. (2020)](https://aclanthology.org/2020.coling-main.223/) | `k`$\in\mathbb{N}$ | `1` | 
+| `dep-bit4` | $4$-bit projective  encoding | [Gómez-Rodríguez et al. (2023)](https://aclanthology.org/2023.emnlp-main.393/) | `proj`$\in$`{None, head, head+path, path}` | `None` | 
 | `dep-bit7` |  $7$-bit $2$-planar encoding | [Gómez-Rodríguez et al. (2023)](https://aclanthology.org/2023.emnlp-main.393/) | | 
-| `dep-eager` | Arc-Eager system | [Nivre and Fernández-González (2002)](https://aclanthology.org/J14-2002/) | `stack`$\in\mathbb{N}$, `buffer`$\in\mathbb{N}$, `proj`$\in$`{None, head, head+path, path}` | 
+| `dep-hexa`   | Hexa-Tagging | [Amini et al. (2023)](https://aclanthology.org/2023.acl-short.124/) | `proj`$\in$`{head, head+path, path}` | `head` | 
+| `dep-hier` | Hierarchical Bracketing | [Ezquerro et al., (2025)](https://arxiv.org/abs/2505.11693) | `variant`$\in$ `{proj, head, head+path, path, nonp}`| `proj` | 
+| `dep-eager` | Arc-Eager system | [Nivre and Fernández-González (2002)](https://aclanthology.org/J14-2002/) | `stack`$\in\mathbb{N}$, `buffer`$\in\mathbb{N}$, `proj`$\in$`{None, head, head+path, path}` | `1`, `1`, `None`| 
 | `dep-biaffine` | Biaffine dependency parser | [Dozat & Manning (2017)](https://arxiv.org/abs/1611.01734) | |
-| `dep-hexa`   | Hexa-Tagging | [Amini et al. (2023)](https://aclanthology.org/2023.acl-short.124/) | `proj`$\in$`{None, head, head+path, path}` |
-
 
 ## Training 
 

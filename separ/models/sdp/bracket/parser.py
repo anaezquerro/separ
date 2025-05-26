@@ -191,7 +191,7 @@ class BracketSemanticParser(SemanticSLParser):
     @classmethod 
     def add_arguments(cls, argparser: ArgumentParser):
         argparser = SemanticSLParser.add_arguments(argparser)
-        argparser.add_argument('-k', type=int, help='Number of bracket planes')
+        argparser.add_argument('-k', default=2, type=int, help='Number of bracket planes')
         return argparser 
     
     @classmethod 

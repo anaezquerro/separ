@@ -27,7 +27,7 @@ class PretrainedTokenizer(InputTokenizer):
             field (str): Input field of the tokenizer.
             fix_len (str): Maximum number of indices to represent a token.
             bos (bool): Activate the BoS token in the encoding process (to deactivate, tkz.bos = False).
-            eos (bool): Activate the EoS token in the encding process (to deactivate, tkz.eos = False).
+            eos (bool): Activate the EoS token in the encoding process (to deactivate, tkz.eos = False).
         """
         self.pretrained = pretrained 
         self.name = name 

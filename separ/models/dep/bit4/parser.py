@@ -100,7 +100,10 @@ class Bit4DependencyParser(DependencySLParser):
 
     def _pred(self, tree: CoNLL.Tree, bit_pred: torch.Tensor, rel_pred: torch.Tensor) -> Tuple[CoNLL.Tree, bool]:
         rec, well_formed = self.lab.decode(self.BIT.decode(bit_pred), self.REL.decode(rel_pred))
-        return tree.rebuild_from_arcs(rec).deprojectivize(self.proj), well_formed        
+        rec = tree.rebuild_from_arcs(rec)
+        if self.proj:
+            rec = rec.deprojectivize(self.proj)
+        return rec, well_formed
 
     @classmethod 
     def build(
@@ -146,6 +149,4 @@ class Bit4DependencyParser(DependencySLParser):
         bit_tkz.train(bits)
         rel_tkz.train(rels)
         
-        rel_conf = rel_tkz.conf 
-        rel_conf.special_indices.append(rel_tkz.vocab['root'])
-        return cls(input_tkzs, [bit_tkz, rel_tkz], [enc_conf, *in_confs, bit_tkz.conf, rel_conf], proj, device)
+        return cls(input_tkzs, [bit_tkz, rel_tkz], [enc_conf, *in_confs, bit_tkz.conf, rel_tkz.conf], proj, device)

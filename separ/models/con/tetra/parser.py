@@ -1,31 +1,41 @@
 from __future__ import annotations
 from typing import List, Tuple, Union, Optional
+from argparse import ArgumentParser
 import torch
 
 from separ.models.con.parser import ConstituencySLParser
-from separ.utils import  Config, flatten, bar
+from separ.utils import Config, flatten, bar
 from separ.data import PTB, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer
-
 
 class TetraTaggingConstituencyParser(ConstituencySLParser):
     NAME = 'con-tetra'
     
     class Labeler:
         ROOT = '$'
-        BOS_TOKEN = '<bos>'
         
-        def __init__(self):
-            pass 
+        def __init__(self, binarize: int = 1):
+            self.binarize = binarize 
         
         def __repr__(self) -> str:
-            return f'TetraTaggingConstituencyLabeler'
+            return f'TetraTaggingConstituencyLabeler(binarize={self.binarize})'
         
         def encode(self, tree: PTB.Tree) -> Tuple[List[str], List[str], List[str], List[str]]:
-            btree = tree.binarize()
+            """Tetra-tagging encoding.
+
+            Args:
+                tree (PTB.Tree): Input constituency tree.
+
+            Returns:
+                List[str] ~ (n-2): Token tags (first and last token are always > and <, respectively).
+                List[str] ~ (n-2): Fencepost tags (first token is always >).
+                List[str] ~ (n-1): Fencepost constituents.
+                List[str] ~ n: Pre-terminal nodes.
+            """
+            btree = tree.binarize(self.binarize)
             if len(btree) == 1:
-                return ['>'], ['>'], [btree.label], btree.POS
+                return [], [], [btree.label], btree.POS
             tetras, fences, cons = self.tetra(btree)
-            return [self.BOS_TOKEN] + tetras[:-1], [self.BOS_TOKEN] + fences, [self.BOS_TOKEN] + cons, btree.POS
+            return tetras[1:-1], fences[1:], cons, btree.POS
                     
         def tetra(self, tree: PTB.Tree, tetras: List[str] = [], fences: List[str] = ['>']) -> List[str]:
             left, right = tree.deps 
@@ -47,7 +57,6 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
             leaves: List[str],
             words: List[str]
         ) -> Tuple[PTB.Tree, bool]:
-            tetras, fences, cons = tetras[1:], fences[1:], cons[1:] # remove the bos token
             stack, well_formed = [], True
             if len(leaves) == 1:
                 leaf = PTB.Tree.from_leaf(leaves[0], words[0])
@@ -55,32 +64,28 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
                     return leaf.recover_unary(), True 
                 else:
                     return PTB.Tree(cons[0], deps=[leaf]).recover_unary(), True
-            for tag, fence, con in zip(tetras, fences, cons):
-                if tag == '>' or len(stack) <= 1:
-                    stack.append(PTB.Tree('$', deps=[PTB.Tree.from_leaf(leaves.pop(0), words.pop(0))]))
-                    well_formed = tag == '>'
+            
+            for tetra, fence, con in zip(['>'] + tetras, ['<'] + fences, cons):
+                if (tetra == '>' or len(stack) < 1) and (sum(s.label == self.ROOT for s in stack) < len(words)):
+                    stack.append(PTB.Tree(self.ROOT, deps=[PTB.Tree.from_leaf(leaves.pop(0), words.pop(0))]))
+                    well_formed &= (tetra == '>')
                 else:
                     stack[-1].deps.append(PTB.Tree.from_leaf(leaves.pop(0), words.pop(0)))
                     stack.pop(-1)
-                if fence == '>' or len(stack) <= 2:
+                    well_formed &= (tetra == '<')
+                    
+                if (fence == '>' or len(stack) < 2) and (sum(s.label == self.ROOT for s in stack) < len(words) + 1):
                     stack[-1].deps = [PTB.Tree(con, deps=stack[-1].deps)]
                     stack.append(stack[-1].deps[0])
-                    well_formed = fence == '>'
+                    well_formed &= (fence == '>')
                 else:
                     last = stack.pop(-1)
                     last.label = con 
                     stack[-1].deps.append(last)
                     stack[-1] = last 
+                    well_formed &= (fence == '<')
             stack[-1].deps.append(PTB.Tree.from_leaf(leaves.pop(0), words.pop(0)))
-            if len(stack) == 1:
-                tree = stack[0].deps[0].debinarize()
-            else:
-                stack = [t.deps[0] for t in stack if t.label == '$']
-                while len(stack) > 1:
-                    last = stack.pop(-1)
-                    stack[-1].deps.append(last)
-                tree = stack[0].debinarize()
-            return tree, well_formed
+            return stack[0].deps[0].debinarize(), well_formed
         
         def test(self, tree: PTB.Tree) -> bool:
             rec, well_formed = self.decode(*self.encode(tree), tree.FORM)
@@ -96,12 +101,32 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
         super().__init__(input_tkzs, target_tkzs, model_confs, device)
         self.lab = self.Labeler()
         
+    @classmethod 
+    def add_arguments(cls, argparser: ArgumentParser):
+        argparser = super(TetraTaggingConstituencyParser, cls).add_arguments(argparser)
+        return argparser 
+        
     def transform(self, tree: PTB.Tree) -> PTB.Tree:
         if not tree.transformed:
             tree.TETRA, tree.FENCE, tree.CON, tree.LEAF = self.lab.encode(tree)
             tree.transformed = True 
         return tree 
-            
+    
+    def collate(self, trees: List[PTB.Tree]):
+        inputs, (tmask, fmask, cmask, lmask), targets, *_ = super().collate(trees)
+        lens = lmask.sum(-1)
+        
+        tmask[:, 0] = False 
+        fmask[:, 0] = False 
+        
+        for i, l in enumerate(lens):
+            tmask[i, l-1] = False 
+            fmask[i, l-1] = False 
+            if l > 1:
+                cmask[i, l-1] = False 
+        
+        return inputs, [tmask, fmask, cmask, lmask], targets, trees
+        
     def _pred(self, tree: PTB.Tree, *preds: List[torch.Tensor]) -> Tuple[PTB.Tree, bool]:
         rec, well_formed = self.lab.decode(*[tkz.decode(pred) for pred, tkz in zip(preds, self.target_tkzs)], tree.FORM)
         rec.ID = tree.ID
@@ -143,14 +168,14 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
         con_tkz = TargetTokenizer('CON')
         leaf_tkz = TargetTokenizer('LEAF')
         labeler = cls.Labeler()
-        tetras, fences, cons, leaves = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
-        tetra_tkz.train(tetras)
+        labels, fences, cons, leaves = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
+        tetra_tkz.train(labels)
         fence_tkz.train(fences)
         con_tkz.train(cons)
         leaf_tkz.train(leaves)
         
         return cls(input_tkzs, [tetra_tkz, fence_tkz, con_tkz, leaf_tkz], 
-                   [enc_conf, *in_confs, tetra_tkz.conf, fence_tkz.conf, con_tkz.conf, leaf_tkz.conf],
+                   [enc_conf, *in_confs, tetra_tkz.conf, fence_tkz.conf, con_tkz.conf, leaf_tkz.conf], 
                    device)
             
         

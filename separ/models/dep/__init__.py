@@ -5,13 +5,15 @@ from .bit4 import *
 from .bit7 import *
 from .biaffine import * 
 from .eager import *
+from .hier import *
 from .hexa import *
 
 DEP_PARSERS = [
-    IndexDependencyParser,
-    PoSDependencyParser,
+    IndexDependencyParser, 
+    PoSDependencyParser, 
     BracketDependencyParser,
-    Bit4DependencyParser,
+    HierarchicalBracketDependencyParser,
+    Bit4DependencyParser, 
     Bit7DependencyParser,
     HexaTaggingDependencyParser,
     ArcEagerDependencyParser,

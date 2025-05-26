@@ -3,7 +3,7 @@ from typing import Optional
 import torch 
 
 from separ.utils import Config 
-from separ.modules import PretrainedEmbedding, LSTM, CharLSTM, FFN, Embedding, xLSTM
+from separ.modules import PretrainedEmbedding, LSTM, CharLSTM, FFN, Embedding
 
 class Model(nn.Module):
     """Shared implementation of the encoder module of a neural model.""" 
@@ -46,7 +46,7 @@ class Model(nn.Module):
                 self.dim += char_conf.embed_size
             
             self.hidden_size = enc_conf.hidden_size or self.dim
-            self.encoder = (xLSTM if 'xlstm' in enc_conf else LSTM)(self.dim, **enc_conf) 
+            self.encoder = LSTM(self.dim, **enc_conf) 
                 
         if 'delay' not in enc_conf:
             enc_conf.delay = 0

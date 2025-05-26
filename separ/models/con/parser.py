@@ -30,11 +30,9 @@ class ConstituencySLParser(Tagger):
         masks: List[torch.Tensor], 
         trees: List[PTB.Tree]
     ) -> Iterator[PTB.Tree]:
-        words, *feats, mask = *inputs, *masks
-        lens = mask.sum(-1).tolist()
-        preds = self.model.predict(self.model(words, feats, mask))
-        preds, _ = zip(*map(self._pred, trees, *[pred.split(lens) for pred in preds]))
-        return preds  
+        preds, _ = zip(*super().pred_step(inputs, masks, trees))
+        return preds 
+    
     
     @torch.no_grad()
     def eval_step(
@@ -44,11 +42,9 @@ class ConstituencySLParser(Tagger):
         targets: List[torch.Tensor], 
         trees: List[PTB.Tree]
     ) -> Tuple[ControlMetric, ConstituencyMetric]:
-        words, *feats, mask = *inputs, *masks
-        lens = mask.sum(-1).tolist()
-        scores = self.model(words, feats, mask)
+        scores = self.model(inputs[0], inputs[1:], *masks)
         loss = self.model.loss(scores, targets)
         preds = self.model.predict(scores)
-        pred_trees, well_formed = zip(*map(self._pred, trees, *[pred.split(lens) for pred in preds]))
+        pred_trees, well_formed = zip(*map(self._pred, trees, *[pred.split(mask.sum(-1).tolist()) for pred, mask in zip(preds, masks)]))
         control = ControlMetric(**dict(zip(self.TARGET_FIELDS, map(acc, preds, targets))), loss=loss.detach(), well_formed=avg(well_formed)*100)
         return control, self.METRIC(pred_trees, trees)

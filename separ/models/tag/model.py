@@ -26,7 +26,7 @@ class TagModel(Model):
         self,
         words: torch.Tensor, 
         feats: List[torch.Tensor],
-        mask: torch.Tensor
+        *masks: List[torch.Tensor]
     ) -> List[torch.Tensor]:
         """Forward pass for the tagging model.
 
@@ -38,8 +38,8 @@ class TagModel(Model):
         Returns:
             List[torch.Tensor ~ [sum(seq_lens), num_tags]]: List of flattened scores.
         """
-        embed = self.encode(words, *feats)[mask]
-        return [self.__getattr__(conf.name.lower())(embed) for conf in self.target_confs]
+        embed = self.encode(words, *feats)
+        return [self.__getattr__(conf.name.lower())(embed[mask]) for conf, mask in zip(self.target_confs, masks)]
     
     def loss(
         self,
@@ -71,8 +71,8 @@ class TagModel(Model):
         """
         preds = []
         for conf, score in zip(self.target_confs, scores):
-            for i in conf.special_indices:
-                score[:, i] = score.min()-1
+            score = torch.nan_to_num(score, 0)
+            score[:, conf.special_indices] = score.min()-1
             preds.append(score.argmax(-1))
         return preds 
     
