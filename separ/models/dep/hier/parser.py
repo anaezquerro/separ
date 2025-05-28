@@ -223,7 +223,7 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
         return argparser
     
     def _pred(self, graph: CoNLL.Graph, bracket_pred: torch.Tensor, rel_pred: torch.Tensor) -> Tuple[CoNLL.Graph, bool]:
-        rec, well_formed = self.labeler.decode(self.BRACKET.decode(bracket_pred), self.REL.decode(rel_pred))
+        rec, well_formed = self.lab.decode(self.BRACKET.decode(bracket_pred), self.REL.decode(rel_pred))
         pred = graph.rebuild(rec)
         if self.variant in ['head', 'path', 'head+path']:
             pred = pred.deprojectivize(self.variant)
