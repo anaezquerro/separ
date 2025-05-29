@@ -15,25 +15,37 @@ def setup():
 
 def cleanup():
     dist.destroy_process_group()
-
-def run(args, dist_mode: bool = False):
-    builder = build_parser(args.parser, dist_mode)
     
+    
+def build_parser(args, dist_mode: bool) -> Parser:
+    if dist_mode:
+        change_bases(PARSER[args.parser])
+    builder = PARSER[args.parser] 
+    if args.load:
+        try:
+            parser = builder.load(args.load, args.device)
+            return parser, None 
+        except:
+            pass 
+    assert os.path.exists(args.conf), f'Configuration file does not exist: {args.conf}'
+    shutil.copyfile(args.conf, f'{args.output_folder}/{filename(args.conf)}')
+    os.makedirs(args.output_folder, exist_ok=True)
     conf = Config.from_ini(args.conf)
     conf.update(vars(args))
+    parser = builder.build(**conf, data=args.train)
+    return parser, conf
     
-    if args.load:
-        parser = builder.load(args.load, args.device)
-    else:
-        parser = builder.build(**conf, data=args.train)
+    
+def run(args, dist_mode: bool = False):
+    parser, conf = build_parser(args, dist_mode)
     
     if args.mode == 'train':
         conf['train_conf'].update(vars(args))
         parser.train(**conf['train_conf'])
     elif args.mode == 'eval':
-        parser.evaluate(args.input, **args)
+        parser.evaluate(args.input, **vars(args))
     elif args.mode == 'predict':
-        parser.evaluate(args.input, **args)
+        parser.predict(args.input, **vars(args))
     
 def dist_run(args):
     args.device = setup() 
@@ -48,12 +60,6 @@ def change_bases(base: type):
             base.__bases__ = (DistributedParser,)
             break 
     return base.__bases__
-    
-def build_parser(name: str, dist_mode: bool) -> Parser:
-    if dist_mode:
-        change_bases(PARSER[name])
-    return PARSER[name] 
-        
         
 if __name__ == '__main__':
     argparser = ArgumentParser(description='Syntactic Parser')
@@ -78,7 +84,7 @@ if __name__ == '__main__':
         
         # eval parser
         evaluate.add_argument('input', type=str, help='Evaluation dataset')
-        evaluate.add_argument('--output', type=str, default=None, help='Output folder to store metric')
+        evaluate.add_argument('--output', type=str, help='Output folder to store metric')
         evaluate.add_argument('--batch-size', type=int, default=500, help='Inference batch size')
 
         
@@ -89,12 +95,6 @@ if __name__ == '__main__':
         
     args = argparser.parse_args()
     set_seed(args.seed)
-
-    # select parser and build
-    assert os.path.exists(args.conf), f'Configuration file does not exist: {args.conf}'
-            
-    os.makedirs(args.output_folder, exist_ok=True)
-    shutil.copyfile(args.conf, f'{args.output_folder}/{filename(args.conf)}')
 
     if args.device == -1:
         dist_run(args)
