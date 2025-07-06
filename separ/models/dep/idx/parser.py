@@ -1,5 +1,4 @@
 from __future__ import annotations 
-from typing import List, Tuple, Union, Optional
 from argparse import ArgumentParser
 import torch, os
 
@@ -22,14 +21,14 @@ class IndexDependencyParser(DependencySLParser):
         def __repr__(self) -> str:
             return f'IndexDependencyLabeler(rel={self.rel})'
             
-        def encode(self, graph: CoNLL.Tree) -> Tuple[List[str], List[str]]:
+        def encode(self, graph: CoNLL.Tree) -> tuple[list[str], list[str]]:
             indexes, rels = ['' for _ in range(len(graph))], ['' for _ in range(len(graph))]
             for arc in graph.arcs:
                 indexes[arc.DEP-1] = str(arc.HEAD - (arc.DEP*self.rel))
                 rels[arc.DEP-1] = arc.REL 
             return indexes, rels 
         
-        def decode(self, indexes: List[str], rels: List[str]) -> Tuple[List[Arc], bool]:
+        def decode(self, indexes: list[str], rels: list[str]) -> tuple[list[Arc], bool]:
             n = len(indexes)
             adjacent = torch.zeros(n+1, n+1, dtype=torch.bool)
             well_formed = True
@@ -44,9 +43,9 @@ class IndexDependencyParser(DependencySLParser):
         
     def __init__(
         self,
-        input_tkzs: List[InputTokenizer],
-        target_tkzs: List[TargetTokenizer],
-        model_confs: List[Config],
+        input_tkzs: list[InputTokenizer],
+        target_tkzs: list[TargetTokenizer],
+        model_confs: list[Config],
         rel: bool,
         device: int
     ):
@@ -70,11 +69,11 @@ class IndexDependencyParser(DependencySLParser):
     @classmethod 
     def build(
         cls, 
-        data: Union[CoNLL, str],
+        data: str | CoNLL,
         enc_conf: Config,
         word_conf: Config, 
-        tag_conf: Optional[Config] = None,
-        char_conf: Optional[Config] = None,
+        tag_conf: Config | None = None,
+        char_conf: Config | None = None,
         rel: bool = False,
         device: int = 0,
         **_

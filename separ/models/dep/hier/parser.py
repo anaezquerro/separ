@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import List, Tuple, Union, Optional
 from argparse import ArgumentParser
 import torch 
 
@@ -36,7 +35,7 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
             self.p += 1
             
         @classmethod
-        def from_string(cls, raw: str) -> List[HierarchicalBracketDependencyParser.Bracket]:
+        def from_string(cls, raw: str) -> list[HierarchicalBracketDependencyParser.Bracket]:
             brackets = []
             for c in raw:
                 if c in cls.PRIORITY:
@@ -53,14 +52,14 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
         def __repr__(self):
             return f'HierarchicalBracketLabeler(variant={self.variant})'
         
-        def get_ropes(self, graph: Graph) -> List[Tuple[Arc, List[Arc]]]:
+        def get_ropes(self, graph: Graph) -> list[tuple[Arc, list[Arc]]]:
             """Gets the structural and auxiliar arcs of a graph.
 
             Args:
                 graph (Graph): Input graph.
 
             Returns:
-                List[Tuple[Arc, List[Arc]]]: List of optimal rope covers.
+                list[tuple[Arc, list[Arc]]]: List of optimal rope covers.
             """
             arcs = sorted(graph.arcs, key=lambda arc: (arc.left, -len(arc)))
             ropes = []
@@ -76,14 +75,14 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
                 ropes.append((structural, auxiliar))
             return ropes
         
-        def encode(self, graph: Graph) -> Tuple[List[str], List[str]]:
+        def encode(self, graph: Graph) -> tuple[list[str], list[str]]:
             """Encodes the input graph.
 
             Args:
                 graph (Graph): Input graph.
 
             Returns:
-                Tuple[List[str], List[str]]: List of labels and dependency relations.
+                tuple[list[str], list[str]]: List of labels and dependency relations.
             """
             if self.variant == 'proj': # projective variant 
                 labels = self.encode_proj(graph)
@@ -94,7 +93,7 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
                 labels = self.encode_proj(graph)
             return labels, [arc.REL for arc in graph.arcs]
         
-        def encode_proj(self, graph: Graph) -> List[str]:
+        def encode_proj(self, graph: Graph) -> list[str]:
             ropes = self.get_ropes(graph)
             labels = [[] for _ in range(len(graph))]
             
@@ -114,7 +113,7 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
                         labels[arc.DEP-1].append(HierarchicalBracketDependencyParser.Bracket('<', structural=False, match=arc.HEAD))
             return [''.join(map(repr, sorted(label))) for label in labels]
         
-        def encode_nonp(self, graph: Graph) -> List[str]:
+        def encode_nonp(self, graph: Graph) -> list[str]:
             ropes = self.get_ropes(graph)
             labels = [[] for _ in range(len(graph))]
             
@@ -152,7 +151,7 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
                         labels[arc.HEAD-1].append(HierarchicalBracketDependencyParser.Bracket('/', structural=False, p=crosses, match=arc.DEP))
             return [''.join(map(repr, sorted(label))) for label in labels] 
         
-        def decode(self, labels: List[str], rels: List[str]) -> Tuple[List[Arc], bool]:
+        def decode(self, labels: list[str], rels: list[str]) -> tuple[list[Arc], bool]:
             stack = [(0, HierarchicalBracketDependencyParser.Bracket('/', structural=True, p=0, match=None))]
             adjacent = torch.zeros(len(labels)+1, len(labels)+1, dtype=torch.bool)
             well_formed = True
@@ -202,13 +201,32 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
             if self.variant != 'nonp':
                 graph = graph.projectivize()
             return super().test(graph)
-                
+        
+        def theoretical(self, tree: CoNLL.Tree) -> CoNLL.Tree:
+            rec = super().theoretical(tree)
+            if self.variant in ['head', 'path', 'head+path']:
+                rec = rec.deprojectivize(self.variant)
+            return rec 
+        
+        def empirical(
+            self, 
+            tree: CoNLL.Tree,
+            known_labels: list[str],
+            known_rels: list[str],
+            LABEL: str, 
+            REL: str
+        ) -> CoNLL.Tree:
+            rec = super().empirical(tree, known_labels, known_rels, LABEL, REL)
+            if self.variant in ['head', 'path', 'head+path']:
+                rec = rec.deprojectivize(self.variant)
+            return rec 
+
         
     def __init__(
         self,
-        input_tkzs: List[InputTokenizer],
-        target_tkzs: List[TargetTokenizer],
-        model_confs: List[Config],
+        input_tkzs: list[InputTokenizer],
+        target_tkzs: list[TargetTokenizer],
+        model_confs: list[Config],
         variant: str, 
         device: int
     ) -> HierarchicalBracketDependencyParser:
@@ -222,9 +240,9 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
         argparser.add_argument('-v', '--variant', type=str, default='proj', choices=['proj', 'head', 'path', 'head+path', 'nonp'], help='Projectivity selection')
         return argparser
     
-    def _pred(self, graph: CoNLL.Graph, bracket_pred: torch.Tensor, rel_pred: torch.Tensor) -> Tuple[CoNLL.Graph, bool]:
+    def _pred(self, graph: CoNLL.Graph, bracket_pred: torch.Tensor, rel_pred: torch.Tensor) -> tuple[CoNLL.Graph, bool]:
         rec, well_formed = self.lab.decode(self.BRACKET.decode(bracket_pred), self.REL.decode(rel_pred))
-        pred = graph.rebuild(rec)
+        pred = graph.rebuild_from_arcs(rec)
         if self.variant in ['head', 'path', 'head+path']:
             pred = pred.deprojectivize(self.variant)
         return pred, well_formed
@@ -232,11 +250,11 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
     @classmethod 
     def build(
         cls, 
-        data: Union[CoNLL, str],
+        data: str | CoNLL,
         enc_conf: Config,
         word_conf: Config, 
-        tag_conf: Optional[Config] = None,
-        char_conf: Optional[Config] = None,
+        tag_conf: Config | None = None,
+        char_conf: Config | None = None,
         variant: str = 'proj',
         device: int = 0,
         **_

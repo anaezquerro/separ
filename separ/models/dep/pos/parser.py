@@ -1,5 +1,4 @@
 from __future__ import annotations 
-from typing import List, Tuple, Union, Optional 
 import torch 
 
 from separ.models.dep.parser import DependencySLParser
@@ -20,7 +19,7 @@ class PoSDependencyParser(DependencySLParser):
         def __repr__(self) -> str:
             return f'PoSDependencyLabeler()'
         
-        def encode(self, tree: CoNLL.Tree) -> Tuple[List[str], List[str], List[str]]:
+        def encode(self, tree: CoNLL.Tree) -> tuple[list[str], list[str], list[str]]:
             indexes, rels = ['' for _ in range(len(tree))], ['' for _ in range(len(tree))]
             tags = ['<bos>'] + tree.UPOS
             for arc in tree.arcs:
@@ -33,7 +32,7 @@ class PoSDependencyParser(DependencySLParser):
                 rels[arc.DEP-1] = arc.REL 
             return indexes, rels, list(tree.UPOS)
         
-        def decode(self, indexes: List[str], rels: List[str], tags: List[str]) -> Tuple[List[Arc], bool]:
+        def decode(self, indexes: list[str], rels: list[str], tags: list[str]) -> tuple[list[Arc], bool]:
             n, tags = len(indexes), ['<bos>'] + tags
             adjacent = torch.zeros(n+1, n+1, dtype=torch.bool)
             well_formed = True 
@@ -61,9 +60,9 @@ class PoSDependencyParser(DependencySLParser):
 
     def __init__(
         self,
-        input_tkzs: List[InputTokenizer],
-        target_tkzs: List[TargetTokenizer],
-        model_confs: List[Config],
+        input_tkzs: list[InputTokenizer],
+        target_tkzs: list[TargetTokenizer],
+        model_confs: list[Config],
         device: int
     ):
         super().__init__(input_tkzs, target_tkzs, model_confs, device)
@@ -78,10 +77,10 @@ class PoSDependencyParser(DependencySLParser):
     @classmethod 
     def build(
         cls, 
-        data: Union[CoNLL, str],
+        data: str | CoNLL,
         enc_conf: Config,
         word_conf: Config, 
-        char_conf: Optional[Config] = None,
+        char_conf: Config | None = None,
         device: int = 0,
         **_
     ) -> PoSDependencyParser:

@@ -1,5 +1,4 @@
 import torch 
-from typing import Optional, List, Union, Tuple, Dict 
 from transformers import AutoTokenizer 
 from torch.nn.utils.rnn import pad_sequence
 
@@ -13,7 +12,7 @@ class PretrainedTokenizer(InputTokenizer):
         self, 
         pretrained: str,
         name: str, 
-        field: Optional[str] = None,
+        field: str | None = None,
         bos: bool = False,
         eos: bool = False,
         fix_len: int = 3
@@ -61,12 +60,12 @@ class PretrainedTokenizer(InputTokenizer):
     def __len__(self) -> int:
         return len(self.tkz)
     
-    def encode(self, tokens: Union[List[str], Sentence], bos = False, eos = False) -> Tuple[torch.Tensor, torch.Tensor]:
+    def encode(self, tokens: list[str] | Sentence, bos = False, eos = False) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Encoding with variable indices. Note that each token might be mapped to a sequence of indices.
         
         Args:
-            tokens (List[str] ~ seq_len): Sequence of tokens or sentence object.
+            tokens (list[str] ~ seq_len): Sequence of tokens or sentence object.
             bos (bool): Whether to add a BoS token.
             eos (bool): Whether to add an EoS token.
             
@@ -86,24 +85,24 @@ class PretrainedTokenizer(InputTokenizer):
     
     def batch_encode(
         self, 
-        batch: List[List[str]],
+        batch: list[list[str]],
         bos: bool = False,
         eos: bool = False,
         mode: str = 'pad',
         pin: bool = False
-    ) -> Tuple[torch.Tensor, List[torch.Tensor]]:
+    ) -> tuple[torch.Tensor, list[torch.Tensor]]:
         """
         Performs the encoding process of a batch of tokens.
         
         Args:
-            batch (List[List[str] ~ seq_len] ~ batch_size): Batch of tokens.
+            batch (list[list[str] ~ seq_len] ~ batch_size): Batch of tokens.
             bos (bool): Whether to add the BoS index.
             eos (bool): Whether to add the EoS index.
             mode (str): Batching mode.
             
         Returns: 
             torch.Tensor ~ [batch_size, max_var_len]: Padded or concatenated batch of indices.
-            List[List[int]]: Number of indices per token.
+            list[list[int]]: Number of indices per token.
         """
         batch_indices, batch_lens = zip(*[self.encode(tokens, bos, eos) for tokens in batch])
         if mode == 'pad':
@@ -114,10 +113,10 @@ class PretrainedTokenizer(InputTokenizer):
             batch_indices = batch_indices.pin_memory()
         return batch_indices, batch_lens
     
-    def decode(self, indices: torch.Tensor) -> List[str]:
+    def decode(self, indices: torch.Tensor) -> list[str]:
         raise NotImplementedError
     
-    def train(self, tokens: List[str]):
+    def train(self, tokens: list[str]):
         raise NotImplementedError
     
     @property

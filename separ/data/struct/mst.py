@@ -1,4 +1,3 @@
-from typing import List 
 import torch 
 
 from separ.data.struct.graph import cycles
@@ -27,12 +26,12 @@ def MST(scores: torch.Tensor) -> torch.Tensor:
     adjacent[0, :] = False
     return adjacent
 
-def contract(scores: torch.Tensor, cycle: List[int]) -> torch.Tensor:
+def contract(scores: torch.Tensor, cycle: list[int]) -> torch.Tensor:
     """Contract operation as described in https://web.stanford.edu/~jurafsky/slp3/old_oct19/15.pdf.
 
     Args:
         scores (torch.Tensor): Matrix of scores.
-        cycle (List[int]): Nodes of the detected cycle.
+        cycle (list[int]): Nodes of the detected cycle.
 
     Returns:
         torch.Tensor: Contract indexed score matrix of the reduced graph.

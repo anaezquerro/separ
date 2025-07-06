@@ -1,4 +1,3 @@
-from typing import List, Union
 import torch
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 
@@ -29,7 +28,7 @@ class CharacterTokenizer(InputTokenizer):
 
     def encode(
         self,
-        tokens: Union[List[str], Sentence],
+        tokens: list[str] | Sentence,
         bos: bool = False,
         eos: bool = False
     ) -> torch.Tensor:
@@ -37,7 +36,7 @@ class CharacterTokenizer(InputTokenizer):
         Performs the encoding process (characters -> indices) from a sequence of tokens.
         
         Args:
-            tokens (List[str] ~ seq_len): List of input tokens or sentence object.
+            tokens (list[str] ~ seq_len): List of input tokens or sentence object.
             bos (bool): Whether to add the BoS index.
             eos (bool): Whether to add the EoS index.
             
@@ -59,16 +58,16 @@ class CharacterTokenizer(InputTokenizer):
     
     def batch_encode(
         self,
-        batch: List[List[str]],
+        batch: list[list[str]],
         bos: bool = False,
         eos: bool = False,
         pin: bool = False
-    ) -> List[torch.Tensor]:
+    ) -> list[torch.Tensor]:
         """
         Performs the encoding process of a batch of tokens.
         
         Args:
-            batch (List[List[str] ~ seq_len] ~ batch_size): Batch of tokens.
+            batch (list[list[str] ~ seq_len] ~ batch_size): Batch of tokens.
             bos (bool): Whether to add the BoS index.
             eos (bool): Whether to add the EoS index.
         """
@@ -78,7 +77,7 @@ class CharacterTokenizer(InputTokenizer):
         return batch_indices
             
             
-    def decode(self, indices: torch.Tensor) -> List[str]:
+    def decode(self, indices: torch.Tensor) -> list[str]:
         raise NotImplementedError
     
     def batch_decode(self, indices: torch.Tensor):

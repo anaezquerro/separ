@@ -1,8 +1,8 @@
 from torch import nn 
-from typing import Optional
 import torch 
+from torch.distributed.fsdp import fully_shard
 
-from separ.utils import Config 
+from separ.utils import Config, recursive_shard
 from separ.modules import PretrainedEmbedding, LSTM, CharLSTM, FFN, Embedding
 
 class Model(nn.Module):
@@ -12,8 +12,8 @@ class Model(nn.Module):
         self,
         enc_conf: Config, 
         word_conf: Config, 
-        tag_conf: Optional[Config] = None,
-        char_conf: Optional[Config] = None
+        tag_conf: Config | None= None,
+        char_conf: Config | None = None
     ):
         super().__init__()
         self.dim = 0
@@ -84,3 +84,7 @@ class Model(nn.Module):
             return torch.cat([embed[:, self.enc_conf.delay:], embed[:, -self.enc_conf.delay:]], dim=1)
         else:
             return embed 
+
+    def shard(self):
+        recursive_shard(self)
+        fully_shard(self)

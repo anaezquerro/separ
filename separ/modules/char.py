@@ -1,6 +1,5 @@
 from torch import nn 
 from torch.nn.utils.rnn import PackedSequence, pad_sequence
-from typing import List 
 import torch 
 
 from separ.modules.ffn import FFN 
@@ -13,7 +12,7 @@ class CharLSTM(nn.Module):
         self.ffn = FFN(hidden_size*2, hidden_size)
         self.reset_parameters()
         
-    def forward(self, batch: List[PackedSequence]) -> torch.Tensor:
+    def forward(self, batch: list[PackedSequence]) -> torch.Tensor:
         embed = [self.embed(x) for x in batch]
         return self.ffn(pad_sequence(embed, batch_first=True))
         

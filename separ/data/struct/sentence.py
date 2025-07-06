@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import List, Optional, Union
 
 from separ.utils.fn import flatten 
 
@@ -7,7 +6,7 @@ class Sentence:
     SEP: str = '\n'
     class Node:
         SEP: str  = '\t'
-        FIELDS: List[str]
+        FIELDS: list[str]
 
         def __init__(self, *args):
             for field, arg in zip(self.FIELDS, args):
@@ -33,9 +32,9 @@ class Sentence:
         
     def __init__(
         self, 
-        nodes: List[Sentence.Node], 
-        ID: Optional[int] = None, 
-        annotations: Optional[List[Union[int, str]]] = None
+        nodes: list[Sentence.Node], 
+        ID: int | None = None, 
+        annotations: list[int | str] | None = None
     ):
         self.nodes = nodes 
         self.ID = ID 
@@ -48,13 +47,13 @@ class Sentence:
         return Sentence(nodes=[node.copy() for node in self.nodes], ID=self.ID, annotations=self.annotations)
     
     @property
-    def FIELDS(self) -> List[str]:
+    def FIELDS(self) -> list[str]:
         return self.Node.FIELDS[1:]
         
     def format(self) -> str:
         return self.SEP.join(self.nodes[x].format() if isinstance(x, int) else x for x in self.annotations)
         
-    def __getattr__(self, name: str) -> List[str]:
+    def __getattr__(self, name: str) -> list[str]:
         """Gets the values of an specific field for each token."""
         if name in self.FIELDS:
             return [getattr(node, name) for node in self.nodes]
@@ -64,15 +63,15 @@ class Sentence:
     def __len__(self) -> int:
         return len(self.nodes)
     
-    def __iter__(self) -> List[Sentence.Node]:
+    def __iter__(self) -> list[Sentence.Node]:
         return iter(self.nodes)
     
-    def rebuild(self, field: str, values: List[str]) -> Sentence:
+    def rebuild(self, field: str, values: list[str]) -> Sentence:
         """Rebuilds the sentence with a new field.
 
         Args:
             field (str): Name of the field to rebuild.
-            values (List[str]): New values of the field.
+            values (list[str]): New values of the field.
 
         Returns:
             Sentence.

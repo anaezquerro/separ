@@ -1,7 +1,7 @@
 from __future__ import annotations
-from typing import List, Tuple, Dict, Union, Optional, Set, Iterable 
+from typing import Iterable 
 from argparse import ArgumentParser
-import torch, os 
+import torch
 
 from separ.parser import Parser 
 from separ.models.dep.eager.model import ArcEagerDependencyModel
@@ -17,12 +17,12 @@ class ArcEagerDependencyParser(Parser):
     DATASET = [CoNLL]
     
     class State:
-        def __init__(self, stack: List[int], buffer: List[int]):
+        def __init__(self, stack: list[int], buffer: list[int]):
             """Represents a state in the arc-eager transition-based system.
 
             Args:
-                stack (List[int]): Top nodes in the stack.
-                buffer (List[int]): Front nodes in the buffer.
+                stack (list[int]): Top nodes in the stack.
+                buffer (list[int]): Front nodes in the buffer.
             """
             self.stack = stack 
             self.buffer = buffer 
@@ -39,13 +39,13 @@ class ArcEagerDependencyParser(Parser):
             self.n_buffer = buffer 
         
         def reset(self, n: int) -> ArcEagerDependencyParser.Oracle:
-            self.stack: List[int] = [0]
-            self.buffer: List[int] = list(range(1, n+1))
+            self.stack: list[int] = [0]
+            self.buffer: list[int] = list(range(1, n+1))
             self.n = n 
-            self.assigned: Set[int] = set()
-            self.recovered: Set[Arc] = set()
-            self.actions: List[str] = []
-            self.rels: List[str] = []
+            self.assigned: set[int] = set()
+            self.recovered: set[Arc] = set()
+            self.actions: list[str] = []
+            self.rels: list[str] = []
             self.root = False 
             return self 
             
@@ -94,7 +94,7 @@ class ArcEagerDependencyParser(Parser):
         def final(self) -> bool:
             return len(self.buffer) == 0
         
-        def __call__(self, actions: List[str], REL: str) -> ArcEagerDependencyParser.State:
+        def __call__(self, actions: list[str], REL: str) -> ArcEagerDependencyParser.State:
             done = False 
             for action in actions:
                 if action == 'left-arc' and self.left_arc_valid():
@@ -116,7 +116,7 @@ class ArcEagerDependencyParser(Parser):
         EMPTY_REL = '<pad>'
         DEFAULT_REL = 'punct'
             
-        def __init__(self, stack: int, buffer: int, proj: Optional[str]):
+        def __init__(self, stack: int, buffer: int, proj: str | None):
             self.stack = stack 
             self.buffer = buffer 
             self.proj = proj 
@@ -124,11 +124,11 @@ class ArcEagerDependencyParser(Parser):
         def __repr__(self):
             return f'ArcEagerSystem(stack={self.stack}, buffer={self.buffer}, proj={self.proj})'
             
-        def encode(self, tree: CoNLL.Tree) -> Tuple[List[ArcEagerDependencyParser.State], List[str], List[str]]:
+        def encode(self, tree: CoNLL.Tree) -> tuple[list[ArcEagerDependencyParser.State], list[str], list[str]]:
             if self.proj:
                 tree = tree.projectivize(self.proj)
             oracle = ArcEagerDependencyParser.Oracle(self.stack, self.buffer)
-            arcs: Dict[int, Arc] = {arc.DEP: arc for arc in tree.arcs}
+            arcs: dict[int, Arc] = {arc.DEP: arc for arc in tree.arcs}
             states, actions, rels = [], [], []
             oracle.reset(len(tree))
             while not oracle.final:
@@ -149,7 +149,7 @@ class ArcEagerDependencyParser(Parser):
                 rels.append(rel)
             return states, actions, rels 
                     
-        def decode(self, n: int, actions: List[str], rels: List[str]) -> List[Arc]:
+        def decode(self, n: int, actions: list[str], rels: list[str]) -> list[Arc]:
             oracle = ArcEagerDependencyParser.Oracle(self.stack, self.buffer)
             oracle.reset(n)
             for action, rel in zip(actions, rels):
@@ -172,7 +172,7 @@ class ArcEagerDependencyParser(Parser):
             recovered = tree.rebuild_from_arcs(self.decode(len(tree), actions, rels))
             return recovered == tree
         
-        def postprocess(self, arcs: List[Arc], n: int) -> List[Arc]:
+        def postprocess(self, arcs: list[Arc], n: int) -> list[Arc]:
             no_assigned = set(range(1, n+1)) - set(arc.DEP for arc in arcs)
             adjacent = adjacent_from_arcs(arcs, n)
             for dep in no_assigned:
@@ -184,12 +184,12 @@ class ArcEagerDependencyParser(Parser):
                 
     def __init__(
         self,
-        input_tkzs: List[InputTokenizer],
-        target_tkzs: List[TargetTokenizer],
-        model_confs: List[Config],
+        input_tkzs: list[InputTokenizer],
+        target_tkzs: list[TargetTokenizer],
+        model_confs: list[Config],
         stack: int,
         buffer: int,
-        proj: Optional[str],
+        proj: str | None,
         device: int
     ):
         super().__init__(input_tkzs, target_tkzs, model_confs, device)
@@ -215,7 +215,7 @@ class ArcEagerDependencyParser(Parser):
             tree.tranformed = True 
         return tree
             
-    def collate(self, trees: List[CoNLL.Tree]) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[torch.Tensor], List[CoNLL.Tree]]:
+    def collate(self, trees: list[CoNLL.Tree]) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor], list[CoNLL.Tree]]:
         inputs = [tkz.batch_encode(trees, pin=False) for tkz in self.input_tkzs]
         states = [tree.STATE for tree in trees]
         targets = [tkz.batch_encode(trees, mode='cat', pin=False) for tkz in self.target_tkzs]
@@ -234,10 +234,10 @@ class ArcEagerDependencyParser(Parser):
     def train_step(
         self,
         model: ArcEagerDependencyModel,
-        inputs: List[torch.Tensor], 
-        _: List[torch.Tensor],
-        targets: List[torch.Tensor]
-    ) -> Tuple[torch.Tensor, ControlMetric]:
+        inputs: list[torch.Tensor], 
+        _: list[torch.Tensor],
+        targets: list[torch.Tensor]
+    ) -> tuple[torch.Tensor, ControlMetric]:
         states, actions, rels = targets
         s_action, s_rel = model(inputs[0], inputs[1:], states)
         loss = model.loss(s_action, s_rel, actions, rels)
@@ -247,9 +247,9 @@ class ArcEagerDependencyParser(Parser):
     def pred_step(
         self, 
         model: ArcEagerDependencyModel,
-        inputs: List[torch.Tensor], 
-        _: List[torch.Tensor], 
-        trees: List[CoNLL.Tree]
+        inputs: list[torch.Tensor], 
+        _: list[torch.Tensor], 
+        trees: list[CoNLL.Tree]
     ) -> Iterable[CoNLL.Tree]:
         embed = model.encode(inputs[0], *inputs[1:])
         oracles = [self.Oracle(self.stack, self.buffer, self.proj).reset(len(tree)) for tree in trees]
@@ -267,11 +267,11 @@ class ArcEagerDependencyParser(Parser):
     def eval_step(
         self, 
         model: ArcEagerDependencyModel,
-        inputs: List[torch.Tensor], 
-        _: List[torch.Tensor], 
-        targets: List[torch.Tensor], 
-        trees: List[CoNLL.Tree]
-    ) -> Tuple[ControlMetric, List[CoNLL.Tree]]:
+        inputs: list[torch.Tensor], 
+        _: list[torch.Tensor], 
+        targets: list[torch.Tensor], 
+        trees: list[CoNLL.Tree]
+    ) -> tuple[ControlMetric, list[CoNLL.Tree]]:
         states, actions, rels = targets
         loss, embed, action_preds, rel_preds = model.control(inputs[0], inputs[1:], states)
         control = ControlMetric(loss=loss.detach(), ACTION=acc(action_preds, actions), REL=acc(rel_preds, rels))
@@ -290,14 +290,14 @@ class ArcEagerDependencyParser(Parser):
     @classmethod 
     def build(
         cls, 
-        data: Union[CoNLL, str],
+        data: str | CoNLL,
         enc_conf: Config,
         word_conf: Config, 
-        tag_conf: Optional[Config] = None,
-        char_conf: Optional[Config] = None,
+        tag_conf: Config | None = None,
+        char_conf: Config | None = None,
         stack: int = 1,
         buffer: int = 1,
-        proj: Optional[str] = None,
+        proj: str | None = None,
         device: int = 0,
         **_
     ) -> ArcEagerDependencyParser:

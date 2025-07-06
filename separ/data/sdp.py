@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import List, Optional, Union
 
 from separ.data.struct import Graph, Arc, Dataset
 from separ.utils.logger import bar
@@ -14,7 +13,7 @@ class SDP(Dataset):
         class Node(Graph.Node):
             FIELDS = ['ID', 'FORM', 'LEMMA', 'POS', 'TOP', 'PRED', 'FRAME', 'ARGS']
             
-            def __init__(self, ID: int, FORM: str, LEMMA: str, POS: str, TOP: str, PRED: str, FRAME: str, *ARGS: List[str]):
+            def __init__(self, ID: int, FORM: str, LEMMA: str, POS: str, TOP: str, PRED: str, FRAME: str, *ARGS: list[str]):
                 self.ID = int(ID)
                 self.FORM = FORM 
                 self.LEMMA = LEMMA 
@@ -44,21 +43,21 @@ class SDP(Dataset):
         
         def __init__(
             self, 
-            nodes: List[SDP.Graph.Node], 
-            arcs: List[Arc], 
-            ID: Optional[int] = None,
-            annotations: Optional[List[Union[int, str]]] = None 
+            nodes: list[SDP.Graph.Node], 
+            arcs: list[Arc], 
+            ID: int | None = None,
+            annotations: list[int | str] | None = None 
         ):
             super().__init__(nodes, arcs, ID, annotations)
             assert all(self.n_preds == len(node.ARGS) for node in self.nodes), f'{self.n_preds}\n' + '\n'.join(node.format() for node in self.nodes)
             assert self.n_preds == len(set(arc.HEAD for arc in self.arcs if arc.HEAD != 0)), f'{self.format()}\n{self.n_preds}\n{self.arcs}'
             assert self.n_roots == sum(node.is_root for node in self.nodes) == sum(arc.HEAD == 0 for arc in self.arcs)
         
-        def rebuild_from_arcs(self, new_arcs: List[Arc]) -> SDP.Graph:
+        def rebuild_from_arcs(self, new_arcs: list[Arc]) -> SDP.Graph:
             """Rebuilds the graph from an input list of new arcs.
 
             Args:
-                new_arcs (List[Arc]): New list of arcs.
+                new_arcs (list[Arc]): New list of arcs.
 
             Returns:
                 SDP.Graph: Resulting graph.
@@ -81,7 +80,7 @@ class SDP(Dataset):
             return SDP.Graph(nodes, new_arcs, ID=self.ID, annotations=self.annotations)
                 
         @property
-        def tags(self) -> List[str]:
+        def tags(self) -> list[str]:
             return [node.POS for node in self.nodes]
                     
         @classmethod

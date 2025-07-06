@@ -5,5 +5,4 @@ from .char import CharLSTM
 from .affine import Biaffine
 from .dropout import SharedDropout
 from .embed import Embedding
-from .scheduler import LinearScheduler, CosineScheduler
 from .gcn import GCN 

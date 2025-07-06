@@ -1,5 +1,4 @@
 import torch, pickle 
-from typing import Optional, Dict, List, Union 
 from torch.nn.utils.rnn import pad_sequence
 
 from separ.utils import invert_dict, Config, flatten 
@@ -14,8 +13,8 @@ class InputTokenizer:
     def __init__(
         self,
         name: str,
-        field: Optional[str] = None,
-        vocab_size: Optional[int] = None,
+        field: str | None = None,
+        vocab_size: int | None = None,
         pad_token: str = PAD_TOKEN,
         unk_token: str = UNK_TOKEN,
         bos_token: str = BOS_TOKEN,
@@ -84,7 +83,7 @@ class InputTokenizer:
         return self.vocab[self.eos_token]
     
     @property
-    def special_tokens(self) -> Dict[str, int]:
+    def special_tokens(self) -> dict[str, int]:
         return {
             self.pad_token: self.pad_index, 
             self.unk_token: self.unk_index, 
@@ -107,7 +106,7 @@ class InputTokenizer:
 
     def encode(
         self,
-        tokens: Union[List[str], Sentence],
+        tokens: list[str] | Sentence,
         bos: bool = False,
         eos: bool = False
     ) -> torch.Tensor:
@@ -115,7 +114,7 @@ class InputTokenizer:
         Performs the encoding process (tokens -> indices) from a sequence of tokens.
         
         Args:
-            tokens (List[str] ~ seq_len): List of input tokens or a sentence object.
+            tokens (list[str] ~ seq_len): List of input tokens or a sentence object.
             bos (bool): Whether to add the BoS index.
             eos (bool): Whether to add the EoS index.
         
@@ -133,7 +132,7 @@ class InputTokenizer:
     
     def batch_encode(
         self, 
-        batch: List[List[str]],
+        batch: list[list[str]],
         bos: bool = False,
         eos: bool = False,
         mode: str = 'pad',
@@ -143,7 +142,7 @@ class InputTokenizer:
         Performs the encoding process of a batch of tokens.
         
         Args:
-            batch (List[List[str] ~ seq_len] ~ batch_size): Batch of tokens.
+            batch (list[list[str] ~ seq_len] ~ batch_size): Batch of tokens.
             bos (bool): Whether to add the BoS index.
             eos (bool): Whether to add the EoS index.
             mode (str): Batching mode.
@@ -160,7 +159,7 @@ class InputTokenizer:
             batch_indices = batch_indices.pin_memory()
         return batch_indices
     
-    def decode(self, indices: torch.Tensor) -> List[str]:
+    def decode(self, indices: torch.Tensor) -> list[str]:
         """
         Performs the decoding process (indices -> tokens).
         
@@ -168,11 +167,11 @@ class InputTokenizer:
             indices (torch.Tensor): Input indices.
         
         Returns:
-            List[str]: Decoded tokens.
+            list[str]: Decoded tokens.
         """
         return list(map(self.dec, indices.detach().tolist()))
     
-    def batch_decode(self, batch: torch.Tensor) -> List[List[str]]:
+    def batch_decode(self, batch: torch.Tensor) -> list[list[str]]:
         """
         Performs the decoding process of a batch of indices.
         
@@ -180,11 +179,11 @@ class InputTokenizer:
             batch (torch.Tensor ~ [batch_size, max_len]): Padded batch of indices.
             
         Returns:
-            List[List[str] ~ seq_len] ~ batch_size: Decoded tokens.
+            list[list[str] ~ seq_len] ~ batch_size: Decoded tokens.
         """
         return list(map(self.decode, batch.unbind(0)))
     
-    def train(self, data: Union[List[str], Dataset]):
+    def train(self, data: list[str] | Dataset):
         """
         Train the tokenizer with new tokens. Note that this is only performed once.
         

@@ -1,14 +1,14 @@
 from __future__ import annotations
-from typing import List, Union, Tuple, Optional
 from torch.optim import AdamW, Optimizer
 import torch, os, logging, time, wandb, shutil
 from argparse import ArgumentParser
 from torch.utils.data import DataLoader, Sampler
 from torch import nn 
-import numpy as np 
+from torch.distributed.tensor import distribute_tensor
+import torch.distributed as dist 
 
 from separ.model import Model 
-from separ.utils import Config, to, ControlMetric, Metric, logger, bar, filename, save 
+from separ.utils import Config, to, ControlMetric, Metric, logger, bar, filename, save , is_distributed, WORLD_SIZE, flatten, is_main
 from separ.data import InputTokenizer, TargetTokenizer, Dataset, Sentence
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'true'
@@ -18,14 +18,14 @@ class Parser:
     OPTIMIZER = AdamW
     MODEL = Model
     METRIC = Metric
-    PARAMS: List[str] = []
-    DATASET: List[type]
+    PARAMS: list[str] = []
+    DATASET: list[type]
     
     def __init__(
         self, 
-        input_tkzs: List[InputTokenizer],
-        target_tkzs: List[TargetTokenizer],
-        model_confs: List[Config],
+        input_tkzs: list[InputTokenizer],
+        target_tkzs: list[TargetTokenizer],
+        model_confs: list[Config],
         device: int
     ):
         self.input_tkzs = input_tkzs
@@ -34,6 +34,8 @@ class Parser:
         for tkz in input_tkzs + target_tkzs:
             self.__setattr__(tkz.name, tkz)
         self.model = self.MODEL(*model_confs).to(device)
+        if is_distributed():
+            self.model.shard()
         self.epochs = 1
         self.device = device
         self.no_improv = [0, 0]
@@ -42,13 +44,17 @@ class Parser:
         return f'{self.__class__.__name__}({", ".join(f"{param}={getattr(self, param)}" for param in self.PARAMS)})'
         
     @property
-    def INPUT_FIELDS(self) -> List[str]:
+    def INPUT_FIELDS(self) -> list[str]:
         return [tkz.field for tkz in self.input_tkzs]
     
     @property
-    def TARGET_FIELDS(self) -> List[str]:
+    def TARGET_FIELDS(self) -> list[str]:
         return [tkz.field for tkz in self.target_tkzs]
     
+    def barrier(self):
+        if is_distributed():
+            dist.barrier(device_ids=[self.device])
+
     @classmethod
     def load_data(cls, path: str) -> Dataset:
         """Loads a dataset from the list of supported datasets (DATASET).
@@ -64,7 +70,7 @@ class Parser:
                 data = c.from_file(path)
         return data 
     
-    def transform_data(self, data: Union[str, Dataset]) -> Dataset:
+    def transform_data(self, data: str | Dataset) -> Dataset:
         """Loads and transforms data from the list of supported datasets (DATASET).
 
         Args:
@@ -81,7 +87,7 @@ class Parser:
     def transform(self, sen: Sentence) -> Sentence:
         return sen 
     
-    def loader(self, data: Dataset, batch_size: int, shuffle: bool) -> Tuple[DataLoader, Sampler]:
+    def loader(self, data: Dataset, batch_size: int, shuffle: bool) -> tuple[DataLoader, Sampler]:
         return data.loader(batch_size, shuffle=shuffle, collate=self.collate)
     
     @classmethod
@@ -93,66 +99,87 @@ class Parser:
         return argparser
        
     def save(self, path: str):
-        model = self.model 
-        self.__delattr__('model')
-        self.state = model.state_dict()
-        torch.save(self, path)
-        self.__delattr__('state')
-        self.model = model 
+        self.barrier()
+        if is_distributed():
+            sharded_sd = self.model.state_dict()
+            state = {}
+            for param_name, sharded_param in sharded_sd.items():
+                full_param = sharded_param.full_tensor()
+                if is_main():
+                    state[param_name] = full_param.cpu()
+                else:
+                    del full_param
+        else:
+            state = self.model.state_dict()
+        if is_main():
+            model = self.model 
+            self.__delattr__('model')
+            self.state = state
+            torch.save(self, path)
+            self.__delattr__('state')
+            self.model = model 
+        self.barrier()
             
     @classmethod
-    def load(cls, path: str, device) -> Parser:
-        # this parser does not have the model, only the state 
+    def load(cls, path: str, device: int) -> Parser:
         parser = torch.load(path, weights_only=False, map_location='cpu')
-        # build the model and load the state
         parser.model = parser.MODEL(*parser.model_confs).to(device)
-        parser.model.load_state_dict(parser.state)
+        parser.device = device 
+        if is_distributed():
+            parser.model.shard()
+            parser.load_state(parser.state)
+        else:
+            parser.model.load_state_dict(parser.state)
         delattr(parser, 'state')
-        parser.device = device
-        if 'no_improv' not in dir(parser):
-            parser.no_improv = [0, 0]
         return parser 
     
-    def load_state(self, path: str):
+    def load_state(self, state: dict[str, torch.Tensor]):
         """Loads the state from a file"""
-        self.model.load_state_dict(torch.load(path, weights_only=False, map_location=torch.device(self.device)).state)
+        self.barrier()
+        if is_distributed():
+            current_sharded = self.model.state_dict()
+            new_sharded = dict()
+            for param_name, full_tensor in state.items():
+                sharded_param = current_sharded.get(param_name)
+                sharded_tensor = distribute_tensor(full_tensor, sharded_param.device_mesh, sharded_param.placements)
+                new_sharded[param_name] = nn.Parameter(sharded_tensor)
+            self.model.load_state_dict(new_sharded, assign=True)
+        else:
+            self.model.load_state_dict(state)
             
     def train(
         self, 
-        train: Union[str, Dataset], 
-        dev: Union[str, Dataset],
-        test: List[Union[str, Dataset]],
+        train: str | Dataset, 
+        dev: str | Dataset,
+        test: list[str | Dataset],
         output_folder: str,
         batch_size: int = 100,
         epochs: int = 100,
         lr: float = 1e-5,
-        log: Union[bool, logging.Logger] = True, 
         train_patience: int = 5,
         dev_patience: int = 10,
-        run_name: Optional[str] = None,
+        run_name: str | None = None,
         **kwargs
     ):
         """Parser training.
 
         Args:
-            train (Union[str, Dataset]): Training dataset.
-            dev (Union[str, Dataset]): Validation dataset.
-            test (List[Union[str, Dataset]]): Test datasets.
+            train (str | Dataset): Training dataset.
+            dev (str | Dataset): Validation dataset.
+            test (list[str | Dataset]): Test datasets.
             output_folder (str): Path to store training results.
             batch_size (int): Batch-size.
             epochs (int): number of training epochs.
             lr (float): Learning rate.
-            log (Union[bool, logging.Logger]): Logger to display and store logs.
             train_patience (int): Number of epochs with no training improvement.
             dev_patience (int): Number of epochs with no development improvement.
-            load (Optional[str]): Whether to load the state of a previous parser.pt.
+            load (str | None): Whether to load the state of a previous parser.pt.
         """
         
         train, dev, *test = map(self.transform_data, [train, dev, *test])
-        if isinstance(log, bool) and log:
+        if is_main():
             os.makedirs(output_folder, exist_ok=True)
             log = logger('train', path=f'{output_folder}/train.log', level=logging.DEBUG)
-        if log:
             log.info(self)
             log.info(self.model)
             log.info(f'Saving training at {output_folder}\n' + '\n'.join(f'{name} = {str(value)}' for name, value in locals().items() if name != 'kwargs'))
@@ -160,6 +187,8 @@ class Parser:
             log.info(f'dev: {dev}')
             log.info(f'test: ' + ', '.join(map(repr, test)))
             run = wandb.init(project='trasepar', name=run_name, config={'server': os.uname()[1], 'parser': repr(self), 'data': train.path})
+        else:
+            log = None
         optimizer = self.OPTIMIZER(self.model.parameters(), lr=lr)
         loader, sampler = self.loader(train, batch_size=batch_size, shuffle=True)
         best_metric, best_loss = self.METRIC, torch.inf
@@ -203,12 +232,12 @@ class Parser:
                     log.warning('Zero loss reached')
                 break 
 
-        
         torch.cuda.empty_cache()
-        self.load_state(f'{output_folder}/best.pt')
+        self.load_state(torch.load(f'{output_folder}/best.pt', map_location='cpu', weights_only=False).state)
         self.trained = True 
         self.save(f'{output_folder}/parser.pt')
-        os.remove(f'{output_folder}/best.pt')
+        if is_main():
+            os.remove(f'{output_folder}/best.pt')
         
         # predict test sets
         for _test in test:
@@ -228,56 +257,58 @@ class Parser:
         epochs: int,
         steps: int = 3,
         max_norm: float = 5.0,
-        log: Optional[logging.Logger] = None,
+        log: logging.Logger | None = None,
         **_
     ) -> ControlMetric:
+        self.barrier()
         self.epochs += 1
         self.model.train()
         sampler.set_epoch(epoch)
         start = time.time()
         debug = ControlMetric()
-        with bar(desc=f'train (epoch-{epoch})', total=sampler.num_sens, leave=False) as pbar:
+        with bar(desc=f'train (epoch-{epoch})', total=sampler.num_sens, leave=False, disable=not is_main()) as pbar:
             for i, (inputs, masks, targets, sens) in enumerate(loader):
                 loss, _debug = self.train_step(*to(self.device, inputs, masks, targets))
                 if loss.isnan():
                     continue 
                 (loss/steps).backward()
-                if i % steps == 0 or (i+1) == len(loader):
+                if (i+1) % steps == 0 or (i+1) == len(loader):
                     optimizer.step()
-                    self.clip(max_norm=max_norm)
+                    nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=max_norm, norm_type=2)
                     optimizer.zero_grad()
                 debug += _debug
                 pbar.update(len(sens))
+                pbar.set_postfix_str(repr(debug))
+                self.barrier()
         if log:
             elapsed = time.time()-start
             log.info(str(pbar))
             log.info(f'Epoch {epoch}/{epochs}: loss={debug.loss:.3f}, elapsed={elapsed:.2f} [{sampler.num_tokens/elapsed:.2f} tokens/s {sampler.num_sens/elapsed:.2f} sens/s]')
-        return debug
+        return debug.to(self.device).sync()
     
-    def clip(self, max_norm: float):
-        nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=max_norm, norm_type=2)
             
     def evaluate(
         self,
-        data: Union[str, Dataset],
-        output_folder: Optional[str] = None,
+        data: str | Dataset,
+        output_folder: str | None = None,
         batch_size: int = 100,
-        log: Union[bool, logging.Logger] = True,
+        log: logging.Logger | None = None,
         **_
     ) -> Metric:
         """Parser distributed evaluation.
 
         Args:
-            data (Union[str, Dataset]): Input dataset.
+            data (str | Dataset): Input dataset.
             conf (Config): Evaluation configuration (device, batch-size, output folder).
             output_folder (Optional[str]): Path to store the evaluation metric.
             batch_size (int): Inference batch size.
-            log (Union[bool, logging.Logger]): Logger. If True, create a new logger. If False, do not display logs.
+            log (logging.Logger | None): Logger.
 
         Returns:
             Metric: Evaluation metric.
         """
-        if isinstance(log, bool) and log:
+        self.barrier()
+        if log is None and is_main():
             log = logger('eval', path=f'{output_folder}/eval.log' if output_folder else None, level=logging.DEBUG)
             log.info(self)
             log.info(self.model)
@@ -285,96 +316,99 @@ class Parser:
         data = self.transform_data(data)
         self.model.eval()
         start = time.time()
-        loader, sampler = self.loader(data, batch_size, shuffle=False)
+        loader, sampler = self.loader(data, batch_size, shuffle=True)
         control, metric = ControlMetric(), self.METRIC
-        if log:
-            pbar = bar(desc=f'eval', total=sampler.num_sens, leave=False)
-        for *batch, sens in loader:
-            _control, _metric = self.eval_step(*to(self.device, *batch), sens)
-            control += _control 
-            metric += _metric 
-            if log:
+        with bar(desc=f'eval', total=sampler.num_sens, leave=False, disable=not is_main()) as pbar:
+            for *batch, sens in loader:
+                _control, _metric = self.eval_step(*to(self.device, *batch), sens)
+                control += _control 
+                metric += _metric 
                 pbar.update(len(sens))
                 pbar.set_postfix_str(repr(control))
+                self.barrier()
         control.elapsed = time.time()-start
-        metric.control = control 
+        metric.control = control.to(self.device).sync()
+        metric.to(self.device).sync()
         if log:
-            pbar.close()
             log.info(f'{data.name}: {metric} [{control} {data.n_tokens/control.elapsed:.2f} tokens/s {len(data)/control.elapsed:.2f} sens/s]')
-            if output_folder:
+            if output_folder and is_main():
                 metric.save(f'{output_folder}/{data.name}.mt')
         return metric
     
     def predict(
         self,
-        data: Union[str, Dataset],
-        output_folder: Optional[str] = None,
+        data: str | Dataset,
+        output_folder: str | None = None,
         batch_size: int = 100,
-        log: Union[bool, logging.Logger] = True,
+        log: logging.Logger | None = None,
         **_
     ) -> Dataset:
         """Parser distributed prediction.
 
         Args:
-            data (Union[str, Dataset]): Input dataset.
+            data (str | Dataset): Input dataset.
             conf (Config): Evaluation configuration (device, batch-size, output folder).
             output_folder (Optional[str]): Path to store the evaluation metric.
             batch_size (int): Inference batch size.
-            log (Union[bool, logging.Logger]): Logger. If True, create a new logger. If False, do not display logs.
+            log (logging.Logger | None): Logger.
 
         Returns:
             Dataset: Predicted dataset.
         """
-        if isinstance(log, bool) and log:
+        self.barrier()
+        if log is None and is_main():
             log = logger('predict', path=f'{output_folder}/predict.log' if output_folder else None, level=logging.DEBUG)
             log.info(self)
             log.info(self.model)
             log.info(f'Prediction from {data}')
         data = self.transform_data(data)
-        loader, sampler = self.loader(data, batch_size=batch_size, shuffle=False)
+        loader, sampler = self.loader(data, batch_size=batch_size, shuffle=True)
         start = time.time()
         self.model.eval()
-        preds= []
-        if log:
-            pbar = bar(desc='pred', total=sampler.num_sens, leave=False)
-        for inputs, masks, _, sens in loader:
-            preds += self.pred_step(*to(self.device, inputs, masks), sens)
-            if log:
+        preds = []
+        with bar(desc='pred', total=sampler.num_sens, leave=False, disable=not is_main()) as pbar:
+            for inputs, masks, _, sens in loader:
+                preds += self.pred_step(*to(self.device, inputs, masks), sens)
                 pbar.update(len(sens))
-        pred = data.__class__(preds, None).sort()
+                self.barrier()
+        if is_distributed():
+            pred = [None for _ in range(WORLD_SIZE)]
+            dist.all_gather_object(pred, preds)
+            pred = data.__class__(flatten(pred), None).sort()
+        else:
+            pred = data.__class__(preds, None).sort()
         if log:
-            pbar.close()
             elapsed = time.time()-start
             log.info(f'{data.name}: {data.n_tokens/elapsed:.2f} tokens/s {len(data)/elapsed:.2f} sens/s]')
-            if output_folder:
+            if output_folder and is_main():
                 pred.save(f'{output_folder}/{filename(data.path)}')
         return pred
                 
     def train_step(
         self,
-        inputs: List[torch.Tensor], 
-        masks: List[torch.Tensor],
-        targets: List[torch.Tensor]
-    ) -> Tuple[torch.Tensor, ControlMetric]:
+        inputs: list[torch.Tensor], 
+        masks: list[torch.Tensor],
+        targets: list[torch.Tensor]
+    ) -> tuple[torch.Tensor, ControlMetric]:
         raise NotImplementedError
             
     @torch.no_grad()
     def eval_step(
         self, 
-        inputs: List[torch.Tensor],
-        masks: List[torch.Tensor],
-        targets: List[torch.Tensor],
-        sens: List[Sentence]
-    ) -> Tuple[ControlMetric, Metric]:
+        inputs: list[torch.Tensor],
+        masks: list[torch.Tensor],
+        targets: list[torch.Tensor],
+        sens: list[Sentence]
+    ) -> tuple[ControlMetric, Metric]:
         raise NotImplementedError
         
     @torch.no_grad()
     def pred_step(
         self,
-        inputs: List[torch.Tensor],
-        masks: List[torch.Tensor],
-        sens: List[Sentence]
-    ) -> List[Sentence]:
+        inputs: list[torch.Tensor],
+        masks: list[torch.Tensor],
+        sens: list[Sentence]
+    ) -> list[Sentence]:
         raise NotImplementedError
     
 

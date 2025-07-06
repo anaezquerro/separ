@@ -3,6 +3,8 @@ import logging
 from tqdm import tqdm  
 from typing import Optional, Iterable
 
+from separ.utils.shard import is_distributed
+
 class CustomFormatter(logging.Formatter):
     blue = "\x1b[1;36m"
     grey = "\x1b[38;20m"
@@ -42,7 +44,6 @@ def logger(
     name: str, 
     path: Optional[str] = None, 
     level = logging.DEBUG,
-    dist: bool = False
 ) -> logging.Logger:
     log = logging.getLogger(name)
     if log.hasHandlers():
@@ -50,7 +51,7 @@ def logger(
     log.propagate = False
     log.setLevel(level)
     ch = logging.StreamHandler()
-    ch.setFormatter(CustomFormatter(dist=dist))
+    ch.setFormatter(CustomFormatter(dist=is_distributed()))
     log.addHandler(ch)
     if path is not None:
         fh = logging.FileHandler(path)

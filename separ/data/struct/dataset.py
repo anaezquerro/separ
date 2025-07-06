@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Optional, Dict, Tuple, Callable
+from typing import Callable
 from torch.utils.data import DataLoader, Sampler
 import torch, random 
 import numpy as np 
@@ -13,7 +13,7 @@ class Dataset(torch.utils.data.Dataset):
     SEP: str
     EXTENSION: str
     
-    def __init__(self, sens: List[Sentence], path: str):
+    def __init__(self, sens: list[Sentence], path: str):
         super().__init__()
         self.sens = sens 
         self.path = path 
@@ -44,7 +44,7 @@ class Dataset(torch.utils.data.Dataset):
             return list(map(self.sens.__getitem__, index))
         
     @property 
-    def lens(self) -> Dict[int, int]:
+    def lens(self) -> dict[int, int]:
         return {i: len(sen) for i, sen in enumerate(self.sens)}
     
     @property
@@ -56,10 +56,8 @@ class Dataset(torch.utils.data.Dataset):
         batch_size: int, 
         shuffle: bool, 
         collate: Callable, 
-        device: Optional[int] = None,
-        lens: Optional[Dict[int, int]] = None
-    ) -> Tuple[DataLoader, Sampler]:
-        sampler = TokenizedBatchSampler(lens if lens is not None else self.lens, batch_size=batch_size, shuffle=shuffle, device=device)
+    ) -> tuple[DataLoader, Sampler]:
+        sampler = TokenizedBatchSampler(self.lens, batch_size=batch_size, shuffle=shuffle)
         loader = DataLoader(self, batch_sampler=sampler, collate_fn=collate, shuffle=False, pin_memory=True)
         return loader, sampler 
     
@@ -76,7 +74,7 @@ class Dataset(torch.utils.data.Dataset):
             writer.write(self.format())
             
     @classmethod
-    def from_files(cls, paths: List[str]) -> Dataset:
+    def from_files(cls, paths: list[str]) -> Dataset:
         sens = []
         for path in paths:
             sens += cls.from_file(path).sens 

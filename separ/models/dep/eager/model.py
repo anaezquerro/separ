@@ -1,4 +1,3 @@
-from typing import Optional, List, Tuple 
 from torch import nn 
 import torch 
 
@@ -12,8 +11,8 @@ class ArcEagerDependencyModel(Model):
         self,
         enc_conf: Config, 
         word_conf: Config, 
-        tag_conf: Optional[Config],
-        char_conf: Optional[Config],
+        tag_conf: Config | None,
+        char_conf: Config | None,
         act_conf: Config,
         rel_conf: Config,
         n_stack: int,
@@ -29,21 +28,21 @@ class ArcEagerDependencyModel(Model):
     def forward(
         self, 
         words: torch.Tensor, 
-        feats: List[torch.Tensor], 
-        states: List[torch.Tensor]
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        feats: list[torch.Tensor], 
+        states: list[torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward pass.
 
         Args:
             words (torch.Tensor): Input words.
                 ~ [batch_size, max(seq_len)] if not pretrained.
                 ~ [batch_size, max(seq_len), fix_len] if pretrained.
-            feats (List[torch.Tensor ~ [batch_size, max(seq_len)]] ~ n_feats): Input features.
-            states (List[torch.Tensor ~ [tr_len, n_stack+n_buffer]] ~ batch_size): List of indices 
+            feats (list[torch.Tensor ~ [batch_size, max(seq_len)]] ~ n_feats): Input features.
+            states (list[torch.Tensor ~ [tr_len, n_stack+n_buffer]] ~ batch_size): List of indices 
                 of each tokens used to represent a state.
 
         Returns: 
-            Tuple[torch.Tensor, torch.Tensor]: 
+            tuple[torch.Tensor, torch.Tensor]: 
                 s_action ~ [sum(tr_lens), n_actions]: Flattened action scores per state.
                 s_rel ~ [sum(tr_lens), n_rels]: Flattened REL scores per state.
         """
@@ -68,13 +67,13 @@ class ArcEagerDependencyModel(Model):
         mask = rels != self.rel_conf.pad_index
         return self.criteria(s_action, actions) + self.criteria(s_rel[mask], rels[mask])
     
-    def predict(self, embed: torch.Tensor, states: List[torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+    def predict(self, embed: torch.Tensor, states: list[torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         """Label and REL batch prediction for a single state. 
 
         Args:
             embed (torch.Tensor ~ [batch_size, max(seq_lens), hidden_size]): Contextualized word 
                 embeddings.
-            states (List[torch.Tensor ~ [1, n_stack+n_buffer]] ~ batch_size): List of indices 
+            states (list[torch.Tensor ~ [1, n_stack+n_buffer]] ~ batch_size): List of indices 
                 of each tokens used to represent a state.
                 
         Returns:
@@ -86,7 +85,7 @@ class ArcEagerDependencyModel(Model):
         s_rel = self.rel(state_embed)
         return self.postprocess(s_action, s_rel)
     
-    def postprocess(self, s_action: torch.Tensor, s_rel: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def postprocess(self, s_action: torch.Tensor, s_rel: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         s_action[:, self.action_conf.special_indices] = s_action.min()-1
         s_rel[:, self.rel_conf.special_indices] = s_rel.min()-1
         return s_action.argsort(-1, descending=True), s_rel.argmax(-1)
@@ -94,11 +93,11 @@ class ArcEagerDependencyModel(Model):
     def control(
         self, 
         words: torch.Tensor,
-        feats: List[torch.Tensor], 
+        feats: list[torch.Tensor], 
         states: torch.Tensor,
         actions: torch.Tensor,
         rels: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         embed = self.encode(words, *feats)
         state_embed = torch.cat([embed[i, state].flatten(-2) for i, state in enumerate(states)])
         s_action = self.action(state_embed)

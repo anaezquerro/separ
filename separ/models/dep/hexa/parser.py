@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import List, Union, Optional, Tuple
 from argparse import ArgumentParser
 import torch 
 
@@ -23,7 +22,7 @@ class HexaTaggingDependencyParser(DependencySLParser):
         def __repr__(self) -> str:
             return f'HexaTaggingDependencyLabeler(proj={self.proj})'
         
-        def encode(self, tree: CoNLL.Tree) -> Tuple[List[str], List[str], List[str], List[str], List[str]]:
+        def encode(self, tree: CoNLL.Tree) -> tuple[list[str], list[str], list[str]]:
             tree = tree.projectivize(self.proj)
             if len(tree) == 1:
                 return [], [], tree.DEPREL
@@ -38,7 +37,7 @@ class HexaTaggingDependencyParser(DependencySLParser):
             fences = list(map(''.join, zip(fences, cons)))
             return hexas[1:-1], fences, tree.DEPREL
         
-        def decode(self, hexas: List[str], fences: List[str], rels: List[str]) -> Tuple[List[Arc], bool]:
+        def decode(self, hexas: list[str], fences: list[str], rels: list[str]) -> tuple[list[Arc], bool]:
             if len(rels) <= 1:
                 return [Arc(0, 1, 'root')], True 
             # Step 1: Obtain the BHT 
@@ -52,7 +51,7 @@ class HexaTaggingDependencyParser(DependencySLParser):
                 arc.REL = rel 
             return arcs, well_formed
 
-        def dep2tree(self, head: int, tree: CoNLL.Tree, stack: List[int]):
+        def dep2tree(self, head: int, tree: CoNLL.Tree, stack: list[int]):
             stack.append(head)
             # get left and right dependencies
             lefts, rights = [], []
@@ -81,7 +80,7 @@ class HexaTaggingDependencyParser(DependencySLParser):
                     right = PTB.Tree.from_leaf(str(right), tree.FORM[right-1])
                 stack.append(PTB.Tree(self.LEFT, deps=[left, right]))
                 
-        def tree2dep(self, node: PTB.Tree, arcs: List[Arc]):
+        def tree2dep(self, node: PTB.Tree, arcs: list[Arc]):
             if node.is_preterminal(): 
                 return node.deps[0]
             elif node.is_terminal():
@@ -98,7 +97,7 @@ class HexaTaggingDependencyParser(DependencySLParser):
             arcs.append(Arc(int(right.label), int(left.label), None))
             return right
         
-        def encode_bht(self, tree: PTB.Tree, tags: List[str], fences: List[str]) -> List[str]:
+        def encode_bht(self, tree: PTB.Tree, tags: list[str], fences: list[str]) -> list[str]:
             if len(tree.deps) == 1:
                 return ['>'], ['>'], [tree.label]
             left, right = tree.deps 
@@ -115,21 +114,21 @@ class HexaTaggingDependencyParser(DependencySLParser):
         
         def decode_bht(
             self, 
-            tags: List[str],
-            fences: List[str],
-            cons: List[str], 
+            tags: list[str],
+            fences: list[str],
+            cons: list[str], 
             n: int
-        ) -> Tuple[PTB.Tree, bool]:
+        ) -> tuple[PTB.Tree, bool]:
             """Performs the decoding algorithm to transform a sequence of 
             hexatags into  BHT.
             
             Args:
-                tags (List[str] ~ n): Sequence of token tags (>, <).
-                fences (List[str] ~ (n-1)): Sequence of fencepost tags (>, <).
-                cons (List[str] ~ (n-1)): Sequence of fencepost tags for constituents (L, R).
+                tags (list[str] ~ n): Sequence of token tags (>, <).
+                fences (list[str] ~ (n-1)): Sequence of fencepost tags (>, <).
+                cons (list[str] ~ (n-1)): Sequence of fencepost tags for constituents (L, R).
             
             Returns:
-                Tuple[PTB.Tree, bool]: Recovered BHT and whether the sequence of 
+                tuple[PTB.Tree, bool]: Recovered BHT and whether the sequence of 
                 tags is well-formed.
             """
             pos = list(map(str, range(1, n+1)))
@@ -158,12 +157,40 @@ class HexaTaggingDependencyParser(DependencySLParser):
         
         def test(self, tree: CoNLL.Tree) -> bool:
             return super().test(tree.projectivize(mode='head'))
+        
+        def theoretical(self, tree: CoNLL.Tree) -> CoNLL.Tree:
+            rec, _ = self.decode(*self.encode(tree))
+            rec = tree.rebuild_from_arcs(rec)
+            if self.proj:
+                rec = rec.deprojectivize(self.proj)
+            return rec 
+        
+        def empirical(
+            self, 
+            tree: CoNLL.Tree,
+            known_hexas: list[str], 
+            known_fences: list[str], 
+            known_rels: list[str], 
+            HEXA: str, 
+            FENCE: str,
+            REL: str
+        ):
+            hexas, fences, rels = self.encode(tree)
+            hexas = [hexa if hexa in known_hexas else HEXA for hexa in hexas]
+            fences = [fence if fence in known_fences else FENCE for fence in fences]
+            rels = [rel if rel in known_rels else REL for rel in rels]
+            rec, _ = self.decode(hexas, fences, rels)
+            rec = tree.rebuild_from_arcs(rec)
+            if self.proj:
+                rec = rec.deprojectivize(self.proj)
+            return rec 
+
     
     def __init__(
         self,
-        input_tkzs: List[InputTokenizer],
-        target_tkzs: List[TargetTokenizer],
-        model_confs: List[Config],
+        input_tkzs: list[InputTokenizer],
+        target_tkzs: list[TargetTokenizer],
+        model_confs: list[Config],
         proj: Optional[str],
         device: int
     ):
@@ -183,7 +210,7 @@ class HexaTaggingDependencyParser(DependencySLParser):
             tree.transformed = True 
         return tree
     
-    def collate(self, trees: List[CoNLL.Tree]):
+    def collate(self, trees: list[CoNLL.Tree]):
         inputs, (hmask, fmask, rmask), targets, _ = super().collate(trees)
         lens = rmask.sum(-1).tolist()
         hmask[:, 0] = False 
@@ -192,7 +219,7 @@ class HexaTaggingDependencyParser(DependencySLParser):
             fmask[i,l-1] = False 
         return inputs, [hmask, fmask, rmask], targets, trees 
         
-    def _pred(self, tree: CoNLL.Tree, *preds: List[torch.Tensor]) -> Tuple[CoNLL.Tree, bool]:
+    def _pred(self, tree: CoNLL.Tree, *preds: list[torch.Tensor]) -> tuple[CoNLL.Tree, bool]:
         rec, well_formed = self.lab.decode(*[tkz.decode(pred) for tkz, pred in zip(self.target_tkzs, preds)])
         pred = tree.rebuild_from_arcs(rec)
         if self.proj:
@@ -202,12 +229,12 @@ class HexaTaggingDependencyParser(DependencySLParser):
     @classmethod 
     def build(
         cls, 
-        data: Union[CoNLL, str],
+        data: str | CoNLL,
         enc_conf: Config,
         word_conf: Config, 
-        tag_conf: Optional[Config] = None,
-        char_conf: Optional[Config] = None,
-        proj: Optional[str] = None,
+        tag_conf: Config | None = None,
+        char_conf: Config | None = None,
+        proj: str | None = None,
         device: int = 0,
         **_
     ) -> HexaTaggingDependencyParser:

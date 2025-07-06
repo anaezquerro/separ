@@ -1,4 +1,4 @@
-from typing import Tuple, List, Iterator 
+from typing import Iterator 
 import torch
 
 from separ.data import PTB
@@ -15,7 +15,7 @@ class ConstituencySLParser(Tagger):
     def METRIC(self) -> ConstituencyMetric:
         return ConstituencyMetric()
     
-    def _pred(self, tree: PTB.Tree, *preds: List[torch.Tensor]) -> Tuple[PTB.Tree, bool]:
+    def _pred(self, tree: PTB.Tree, *preds: list[torch.Tensor]) -> tuple[PTB.Tree, bool]:
         spans, well_formed = self.lab.decode(
             *[tkz.decode(pred) for pred, tkz in zip(preds, self.target_tkzs)]
         )
@@ -26,9 +26,9 @@ class ConstituencySLParser(Tagger):
     @torch.no_grad()
     def pred_step(
         self,
-        inputs: List[torch.Tensor], 
-        masks: List[torch.Tensor], 
-        trees: List[PTB.Tree]
+        inputs: list[torch.Tensor], 
+        masks: list[torch.Tensor], 
+        trees: list[PTB.Tree]
     ) -> Iterator[PTB.Tree]:
         preds, _ = zip(*super().pred_step(inputs, masks, trees))
         return preds 
@@ -37,11 +37,11 @@ class ConstituencySLParser(Tagger):
     @torch.no_grad()
     def eval_step(
         self, 
-        inputs: List[torch.Tensor], 
-        masks: List[torch.Tensor], 
-        targets: List[torch.Tensor], 
-        trees: List[PTB.Tree]
-    ) -> Tuple[ControlMetric, ConstituencyMetric]:
+        inputs: list[torch.Tensor], 
+        masks: list[torch.Tensor], 
+        targets: list[torch.Tensor], 
+        trees: list[PTB.Tree]
+    ) -> tuple[ControlMetric, ConstituencyMetric]:
         scores = self.model(inputs[0], inputs[1:], *masks)
         loss = self.model.loss(scores, targets)
         preds = self.model.predict(scores)

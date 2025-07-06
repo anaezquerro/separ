@@ -1,6 +1,5 @@
 from __future__ import annotations
 from argparse import ArgumentParser
-from typing import Tuple, List, Union, Optional
 
 from separ.models.con.parser import ConstituencySLParser
 from separ.utils import Config, flatten, bar
@@ -25,7 +24,7 @@ class IndexConstituencyParser(ConstituencySLParser):
         def __repr__(self) -> str:
             return f'IndexConstituencyLabeler(rel={self.rel})'
             
-        def encode(self, tree: PTB.Tree) -> Tuple[List[str], List[str], List[str]]:
+        def encode(self, tree: PTB.Tree) -> tuple[list[str], list[str], list[str]]:
             collapsed = tree.collapse_unary()
             indexes = [0 for _ in range(len(tree))]
             lens = [len(tree)+1 for _ in range(len(tree))]
@@ -41,10 +40,10 @@ class IndexConstituencyParser(ConstituencySLParser):
                 indexes = self.relativize(indexes)
             return list(map(str, indexes)), cons, leaves
     
-        def relativize(self, indexes: List[Union[int, str]]) -> List[int]:
+        def relativize(self, indexes: list[int | str]) -> list[int]:
             return [int(indexes[0])] + [int(indexes[i]) - int(indexes[i-1]) for i in range(1, len(indexes))]
              
-        def decode(self, indexes: List[str], cons: List[str], leaves: List[str]) -> Tuple[List[PTB.Span], bool]:
+        def decode(self, indexes: list[str], cons: list[str], leaves: list[str]) -> tuple[list[PTB.Span], bool]:
             stack, spans = [], []
             indexes = self.relativize(indexes) if not self.rel else list(map(int, indexes))
             for i, (index, con) in enumerate(zip(indexes, cons)):
@@ -75,9 +74,9 @@ class IndexConstituencyParser(ConstituencySLParser):
         
     def __init__(
         self,
-        input_tkzs: List[InputTokenizer],
-        target_tkzs: List[TargetTokenizer],
-        model_confs: List[Config],
+        input_tkzs: list[InputTokenizer],
+        target_tkzs: list[TargetTokenizer],
+        model_confs: list[Config],
         rel: bool,
         device: int
     ):
@@ -100,10 +99,10 @@ class IndexConstituencyParser(ConstituencySLParser):
     @classmethod
     def build(
         cls, 
-        data: Union[PTB, str],
+        data: str | PTB,
         enc_conf: Config,
         word_conf: Config,
-        char_conf: Optional[Config] = None,
+        char_conf: Config | None = None,
         rel: bool = False,
         device: int = 0,
         **_

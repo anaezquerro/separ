@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import List, Tuple, Union, Optional
 from argparse import ArgumentParser
 import torch
 
@@ -19,17 +18,17 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
         def __repr__(self) -> str:
             return f'TetraTaggingConstituencyLabeler(binarize={self.binarize})'
         
-        def encode(self, tree: PTB.Tree) -> Tuple[List[str], List[str], List[str], List[str]]:
+        def encode(self, tree: PTB.Tree) -> tuple[list[str], list[str], list[str], list[str]]:
             """Tetra-tagging encoding.
 
             Args:
                 tree (PTB.Tree): Input constituency tree.
 
             Returns:
-                List[str] ~ (n-2): Token tags (first and last token are always > and <, respectively).
-                List[str] ~ (n-2): Fencepost tags (first token is always >).
-                List[str] ~ (n-1): Fencepost constituents.
-                List[str] ~ n: Pre-terminal nodes.
+                list[str] ~ (n-2): Token tags (first and last token are always > and <, respectively).
+                list[str] ~ (n-2): Fencepost tags (first token is always >).
+                list[str] ~ (n-1): Fencepost constituents.
+                list[str] ~ n: Pre-terminal nodes.
             """
             btree = tree.binarize(self.binarize)
             if len(btree) == 1:
@@ -37,7 +36,7 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
             tetras, fences, cons = self.tetra(btree)
             return tetras[1:-1], fences[1:], cons, btree.POS
                     
-        def tetra(self, tree: PTB.Tree, tetras: List[str] = [], fences: List[str] = ['>']) -> List[str]:
+        def tetra(self, tree: PTB.Tree, tetras: list[str] = [], fences: list[str] = ['>']) -> list[str]:
             left, right = tree.deps 
             if left.is_preterminal():
                 left_tetras, left_fences, left_cons = ['>'], [],  []
@@ -51,12 +50,12 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
 
         def decode(
             self, 
-            tetras: List[str],
-            fences: List[str],
-            cons: List[str], 
-            leaves: List[str],
-            words: List[str]
-        ) -> Tuple[PTB.Tree, bool]:
+            tetras: list[str],
+            fences: list[str],
+            cons: list[str], 
+            leaves: list[str],
+            words: list[str]
+        ) -> tuple[PTB.Tree, bool]:
             stack, well_formed = [], True
             if len(leaves) == 1:
                 leaf = PTB.Tree.from_leaf(leaves[0], words[0])
@@ -93,9 +92,9 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
         
     def __init__(
         self,
-        input_tkzs: List[InputTokenizer], 
-        target_tkzs: List[TargetTokenizer],
-        model_confs: List[Config],
+        input_tkzs: list[InputTokenizer], 
+        target_tkzs: list[TargetTokenizer],
+        model_confs: list[Config],
         device: int
     ):
         super().__init__(input_tkzs, target_tkzs, model_confs, device)
@@ -112,7 +111,7 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
             tree.transformed = True 
         return tree 
     
-    def collate(self, trees: List[PTB.Tree]):
+    def collate(self, trees: list[PTB.Tree]):
         inputs, (tmask, fmask, cmask, lmask), targets, *_ = super().collate(trees)
         lens = lmask.sum(-1)
         
@@ -127,7 +126,7 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
         
         return inputs, [tmask, fmask, cmask, lmask], targets, trees
         
-    def _pred(self, tree: PTB.Tree, *preds: List[torch.Tensor]) -> Tuple[PTB.Tree, bool]:
+    def _pred(self, tree: PTB.Tree, *preds: list[torch.Tensor]) -> tuple[PTB.Tree, bool]:
         rec, well_formed = self.lab.decode(*[tkz.decode(pred) for pred, tkz in zip(preds, self.target_tkzs)], tree.FORM)
         rec.ID = tree.ID
         return rec, well_formed
@@ -135,10 +134,10 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
     @classmethod
     def build(
         cls, 
-        data: Union[PTB, str],
+        data: str | PTB,
         enc_conf: Config,
         word_conf: Config,
-        char_conf: Optional[Config] = None,
+        char_conf: Config | None = None,
         device: int = 0,
         **_
     ) -> TetraTaggingConstituencyParser:

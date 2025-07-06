@@ -1,6 +1,6 @@
-# :seedling: Parsing as Sequence Labeling
+# :seedling: [SePar](https://github.com/anaezquerro/separ): [Se]()quence Labeling algorithms for [Par]()sing
 
-Hi :wave: This is a [Python](https://www.python.org/) implementation for sequence-labeling algorithms for Dependency, Constituency and Semantic Parsing.
+Hi :wave: This is a [Python](https://www.python.org/) implementation for sequence-labeling algorithms for Dependency, Constituency and Graph Parsing.
 
 
 - **Dependency Parsing**:
@@ -31,13 +31,13 @@ It is also the official repository of the following papers:
 - *Hierarchical Bracketing Encodings for Dependency Parsing as Tagging* ([Ezquerro et al., 2025](https://arxiv.org/abs/2505.11693)).
 
 
-Please, feel free to [reach out](mailto:ana.ezquerro@udc.es) if you want to collaborate or include  additional parsers to [separ](https://github.com/anaezquerro/separ)!
+Please, feel free to [reach out](mailto:ana.ezquerro@udc.es) if you want to collaborate or include  additional parsers to [SePar](https://github.com/anaezquerro/separ)!
 
 
 
 ## Installation 
 
-This code was tested in [Python >=3.8](https://www.python.org/downloads/), although we recommend using [Python >=3.11](https://www.python.org/downloads/release/python-3110/) in a GPU system with NVIDIA drivers (>=535) and CUDA (>=12.4) installed. Use the [requirements.txt](requirements.txt) to download the dependencies in an existing environment or the [environment.yaml](environment.yaml) to create an Anaconda environment.
+This code was tested in [Python >=3.8](https://www.python.org/downloads/), although we recommend using [Python >=3.12](https://www.python.org/downloads/release/python-3110/) in a GPU system with NVIDIA drivers (>=535) and CUDA (>=12.4) installed. Use the [requirements.txt](requirements.txt) to download the dependencies in an existing environment or the [environment.yaml](environment.yaml) to create an Anaconda environment.
 
 ```shell
 pip install -r requirements.txt
@@ -49,8 +49,7 @@ conda env create -n separ -f environment.yaml
 
 ## Usage 
 
-You can train, evaluate and predict different parsers from terminal with [run.py](run.py). Each parser has a string identifier that is introduced as the first argument of the [run.py](run.py) script. The following table shows the parsers available with their corresponding paper and the 
-proper arguments that can be introduced:
+You can train, evaluate and predict different parsers from terminal with the [run.py](run.py) script. Each parser has a string identifier that is introduced as the first argument of [run.py](run.py). The following table shows the available parsers and their configuration (modifiable through terminal arguments).
 
 
 | **Identifier** | **Parser** | **Paper** | **Arguments** | **Default** | 
@@ -97,11 +96,25 @@ And optionally:
 - `<seed>`: Specify other seed value. By default, this code always uses the seed  `123`.
 - `<run-name>`: [wandb](https://wandb.ai/site/) identifier.
 
-**Distributed training**: This library supports distributed training by setting the argument `-d=-1` and running the script [run.py](run.py) with `torchrun`. Use the `CUDA_VISIBLE_DEVICES` variable to hide specific GPUs (by default, `-d=-1` will use all GPUs available). 
+**W&B logging**: [SePar](https://github.com/anaezquerro/separ) also allows model debugging with [wandb](https://wandb.ai/site/). Please. follow [these instructions](https://docs.wandb.ai/quickstart/) to create and account and connect it with your local installation. Note that [SePar](https://github.com/anaezquerro/separ) still works without a [wandb](https://wandb.ai/site/) account.
 
-**W&B logging**: This library also allows model debugging with [wandb](https://wandb.ai/site/). Please. follow [these instructions](https://docs.wandb.ai/quickstart/) to create and account and connect it with your local installation. Note that [separ](https://github.com/anaezquerro/separ) still works without a [wandb](https://wandb.ai/site/) account.
+### Distributed training
+
+[SePar](https://github.com/anaezquerro/separ) supports distributed training with [FSDP2](https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html) by running the script [run.py](run.py) with `torchrun`. Use the `CUDA_VISIBLE_DEVICES` variable to hide specific GPUs.
+
+```shell
+CUDA_VISIBLE_DEVICES=<devices> torchrun --nproc_per_node <num-devices> \
+    run.py <parser-identifier> <specific-args> \
+    -c <conf> (--load <pt-path> --seed <seed>) \
+    train --train <train-path> --dev <dev-path> --test <test-paths> \
+    -o <output-folder> (--run-name <run-name>)
+```
+
+where `<devices>` is the list of GPU identifiers (separated by comma) and `<num-devices>` is the number of GPUs used.
 
 
+> [!WARNING]  
+> As introduced in [this tutorial](https://docs.pytorch.org/tutorials/intermediate/FSDP_tutorial.html), FSDP2 requires manually specifying which modules or layers are sharded between GPUs for a better parameter distribution. In [separ/utils/shard.py](separ/utils/shard.py) we include a function `recursive_shard()` which only shards large Transformer layers (specifically, those corresponding to pretrained models included in the [configs](configs/) folder). We suggest manually adding more layers when training with other LLMs. Do not hesitate to [reach us](mailto:ana.ezquerro@udc.es) if you need any help!
 
 ### Evaluation
 Evaluation with a trained parser is also performed with the [run.py](run.py) script.

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Optional, Dict, Union, Set, Iterator
+from typing import Iterator
 import numpy as np 
 import torch, re
 
@@ -9,18 +9,18 @@ from separ.data.struct.arc import Arc
 class Graph(Sentence):
     def __init__(
         self, 
-        nodes: List[Sentence.Node], 
-        arcs: List[Arc], 
+        nodes: list[Sentence.Node], 
+        arcs: list[Arc], 
         ID: Optional[int] = None,
-        annotations: Optional[List[Union[int, str]]] = None
+        annotations: Optional[list[Union[int, str]]] = None
     ):
         """Abstract representation of a graph, which adds a list of arcs to a sentence..
 
         Args:
-            nodes (List[Node]): List f nodes..
-            arcs (List[Arc]): List of arcs.
+            nodes (list[Node]): List f nodes..
+            arcs (list[Arc]): List of arcs.
             ID (Optional[int], optional): Integer identifier for sorting. Defaults to None (no sorting).
-            annotations (Optional[List[Union[str, int]]]): List of annotations or node position.
+            annotations (Optional[list[Union[str, int]]]): List of annotations or node position.
         """
         super().__init__(nodes, ID, annotations)
         self.arcs = arcs
@@ -29,14 +29,14 @@ class Graph(Sentence):
         self._ADJACENT = None
         self._planes = None
         self._relaxed_planes = None 
-        self._bit6k_planes: List[List[Arc]] = None # store planes from 4k-bit encoding
-        self._bit4k_planes: List[List[Arc]] = None # store planes from 6k-bit encoding
+        self._bit6k_planes: list[list[Arc]] = None # store planes from 4k-bit encoding
+        self._bit4k_planes: list[list[Arc]] = None # store planes from 6k-bit encoding
         self._cycles = None 
         self.transformed = False 
         
 
         
-    def rebuild_from_arcs(self, new_arcs: List[Arc]) -> Graph:
+    def rebuild_from_arcs(self, new_arcs: list[Arc]) -> Graph:
         raise NotImplementedError
         
     @property
@@ -48,7 +48,7 @@ class Graph(Sentence):
         return self._ADJACENT
     
     @property 
-    def rels(self) -> Set[str]:
+    def rels(self) -> set[str]:
         return set(arc.REL for arc in self.arcs)
     
     @property 
@@ -64,12 +64,12 @@ class Graph(Sentence):
         return self.__class__([node.copy() for node in self.nodes], [arc.copy() for arc in self.arcs], self.ID)
     
     @property
-    def planes(self) -> Dict[int, List[Arc]]:
+    def planes(self) -> dict[int, list[Arc]]:
         """Greedy plane assignment (from left to right sorting by the dependant node). The planes 
         are sorted by the number of arcs or the creation order.
 
         Returns:
-            Dict[int, List[Arc]]: Plane assignment.
+            dict[int, list[Arc]]: Plane assignment.
         """
         if self._planes is None:
             # store the planes 
@@ -89,11 +89,11 @@ class Graph(Sentence):
         return self._planes
     
     @property
-    def relaxed_planes(self) -> Dict[int, List[Arc]]:
+    def relaxed_planes(self) -> dict[int, list[Arc]]:
         """Greedy relaxed plane assignment (from left to right sorting by the dependant node).
 
         Returns:
-            Dict[int, List[Arc]]: Relaxed plane assigment.
+            dict[int, list[Arc]]: Relaxed plane assigment.
         """
         if self._relaxed_planes is None:
             self._relaxed_planes = {0: []}
@@ -112,7 +112,7 @@ class Graph(Sentence):
         return self._relaxed_planes
     
     @property 
-    def bit4k_planes(self) -> List[List[Arc]]:
+    def bit4k_planes(self) -> list[list[Arc]]:
         if self._bit4k_planes is None:
             planes = [[]]
             for arc in sorted(self.arcs, key=lambda arc: (arc.left, arc.right)):
@@ -130,7 +130,7 @@ class Graph(Sentence):
         return self._bit4k_planes 
     
     @property 
-    def bit6k_planes(self) -> List[List[Arc]]:
+    def bit6k_planes(self) -> list[list[Arc]]:
         if self._bit6k_planes is None:
             planes = [[]]
             for arc in sorted(self.arcs, key=lambda arc: (arc.left, arc.right)):
@@ -149,11 +149,11 @@ class Graph(Sentence):
         return self._bit6k_planes
 
     @property 
-    def HEAD(self) -> List[List[int]]:
+    def HEAD(self) -> list[list[int]]:
         """Returns the list of parents positions for each word.
 
         Returns:
-            List[List[int]]: List of parents positions for each word in the graph.
+            list[list[int]]: List of parents positions for each word in the graph.
         """
         heads = [[] for _ in range(len(self))]
         for arc in self.arcs:
@@ -161,11 +161,11 @@ class Graph(Sentence):
         return heads
     
     @property 
-    def DEPS(self) -> List[List[int]]:
+    def DEPS(self) -> list[list[int]]:
         """Returns the list of dependents of each node [0,n].
 
         Returns:
-            List[List[int]]: List of dependents per node.
+            list[list[int]]: List of dependents per node.
         """
         deps = [[] for _ in range(len(self) + 1)]
         for arc in self.arcs:
@@ -187,11 +187,11 @@ class Graph(Sentence):
         return graph 
     
     @property 
-    def n_in(self) -> List[int]:
+    def n_in(self) -> list[int]:
         """Number of incoming arcs (number of heads per node).
 
         Returns:
-            List[int]: Number of incoming arcs for each node.
+            list[int]: Number of incoming arcs for each node.
         """
         n_in = [0 for _ in range(len(self))]
         for arc in self.arcs:
@@ -199,11 +199,11 @@ class Graph(Sentence):
         return n_in 
     
     @property
-    def n_out(self) -> List[int]:
+    def n_out(self) -> list[int]:
         """Number of outcoming arcs (number of dependants per node).
 
         Returns:
-            List[int]: Number of outcoming arcs for each node.
+            list[int]: Number of outcoming arcs for each node.
         """
         n_out = [0 for _ in range(len(self)+1)]
         for arc in self.arcs:
@@ -211,11 +211,11 @@ class Graph(Sentence):
         return n_out
 
     @property 
-    def n_left_in(self) -> List[int]:
+    def n_left_in(self) -> list[int]:
         """Number of left incoming arcs (number of left heads per node).
 
         Returns:
-            List[int]: Number of left heads per node.
+            list[int]: Number of left heads per node.
         """
         n_left_in = [0 for _ in range(len(self))]
         for arc in self.arcs:
@@ -224,11 +224,11 @@ class Graph(Sentence):
         return n_left_in 
     
     @property
-    def n_right_in(self) -> List[int]:
+    def n_right_in(self) -> list[int]:
         """Number of right incoming arcs (number of right heads per node).
 
         Returns:
-            List[int]: Number of right hedas per node.
+            list[int]: Number of right hedas per node.
         """
         n_right_in = [0 for _ in range(len(self))]
         for arc in self.arcs:
@@ -241,7 +241,7 @@ class Graph(Sentence):
         return len(self.cycles)
     
     @property 
-    def cycles(self) -> List[Set[int]]:
+    def cycles(self) -> list[set[int]]:
         if self._cycles is not None:
             return self._cycles
         self._cycles = list(cycles(self.ADJACENT))
@@ -269,7 +269,7 @@ class Graph(Sentence):
         return graph.rebuild_from_arcs(graph.arcs)
     
     @classmethod
-    def decollapse_one_cycles(cls, arcs: List[Arc]) -> Graph:
+    def decollapse_one_cycles(cls, arcs: list[Arc]) -> Graph:
         """Decollapses cycles of length one by creating a cycle for those arcs whose REL has the expression <c></c>."""
         for arc in arcs:
             matches = re.findall(r'<c>(.*?)</c>', arc.REL)
@@ -303,23 +303,23 @@ def has_cycles(adjacent: torch.Tensor) -> bool:
 
 def cycles(
     adjacent: torch.Tensor, 
-    _visited: Optional[List[int]] = None,
-    _non_visited: Optional[Set[int]] = None,
-    _recovered: Optional[List[Set[int]]] = None
-) -> Iterator[Set[int]]:
+    _visited: list[int] | None = None,
+    _non_visited: set[int] | None = None,
+    _recovered: list[set[int]] | None = None
+) -> Iterator[set[int]]:
     """Obtain cycles from an adjacent matrix.
 
     Args:
         adjacent (torch.Tensor ~ [seq_len, seq_len]): Adjacent matrix of the graph.
-        _visited (Optional[List[int]], optional): Visited nodes. Defaults to None.
-        _non_visited (Optional[Set[int]], optional): Non visited nodes. Defaults to None.
-        _recovered (Optional[List[Set[int]]], optional): Recovered cycles. Defaults to None.
+        _visited (Optional[list[int]], optional): Visited nodes. Defaults to None.
+        _non_visited (Optional[set[int]], optional): Non visited nodes. Defaults to None.
+        _recovered (Optional[list[set[int]]], optional): Recovered cycles. Defaults to None.
 
     Returns:
-        Set[int]: Detected cycle.
+        set[int]: Detected cycle.
 
     Yields:
-        Iterator[Set[int]]: Iterable of cycles.
+        Iterator[set[int]]: Iterable of cycles.
     """
     if _visited is None:
         _visited = [0]
@@ -360,13 +360,13 @@ def forms_cycles(adjacent: torch.Tensor, dep: int, head: int) -> bool:
         else:
             return forms_cycles(adjacent, dep, head_heads[0])
 
-def adjacent_from_arcs(arcs: List[Arc], n: int) -> torch.Tensor:
+def adjacent_from_arcs(arcs: list[Arc], n: int) -> torch.Tensor:
     adjacent = torch.zeros(n+1, n+1, dtype=torch.bool)
     for arc in arcs:
         adjacent[arc.DEP, arc.HEAD] = True 
     return adjacent 
 
-def candidates_no_cycles(adjacent: torch.Tensor, dep: int) -> List[int]: 
+def candidates_no_cycles(adjacent: torch.Tensor, dep: int) -> list[int]: 
     n = adjacent.shape[0]
     candidates = []
     for o in range(1, max(n-dep, dep)+1):

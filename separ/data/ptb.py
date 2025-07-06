@@ -1,6 +1,6 @@
 
 from __future__ import annotations
-from typing import List, Iterator, Optional, Tuple
+from typing import Iterator
 import numpy as np 
 import torch
 
@@ -51,7 +51,7 @@ class PTB(Dataset):
         ROOT = '$'
         FIELDS = ['FORM', 'POS']
         
-        def __init__(self, label: str, deps: List[PTB.Tree] = [], ID: Optional[int] = None):
+        def __init__(self, label: str, deps: list[PTB.Tree] = [], ID: int | None = None):
             self.label = label 
             self.deps = deps 
             self.ID = ID 
@@ -225,19 +225,19 @@ class PTB(Dataset):
                         deps.append(dep.debinarize(label))
                 return PTB.Tree(tree.label, deps)
                         
-        def rebuild(self, field: str, values: List[str]) -> PTB.Tree:
+        def rebuild(self, field: str, values: list[str]) -> PTB.Tree:
             if field == 'POS':
                 return self.rebuild_preterminals(values)
             else:
                 raise NotImplementedError
             
-        def rebuild_preterminals(self, tags: List[str]) -> PTB.Tree:
+        def rebuild_preterminals(self, tags: list[str]) -> PTB.Tree:
             if self.is_preterminal():
                 return PTB.Tree(label=tags.pop(0), deps=self.deps)
             else:
                 return PTB.Tree(self.label, deps=[dep.rebuild_preterminals(tags) for dep in self.deps])
             
-        def rebuild_terminals(self, tags: List[str]) -> PTB.Tree:
+        def rebuild_terminals(self, tags: list[str]) -> PTB.Tree:
             if self.is_terminal():
                 return PTB.Tree(label=tags.pop(0), deps=self.deps)
             else:
@@ -273,7 +273,7 @@ class PTB(Dataset):
                 return 1 + max(dep.depth for dep in self.deps)
             
         @property 
-        def leaves(self) -> List[PTB.Tree]:
+        def leaves(self) -> list[PTB.Tree]:
             """Returns the leaves (terminal nodes) of the tree.
                 
             Examples:
@@ -290,7 +290,7 @@ class PTB(Dataset):
                 return leaves
             
         @property
-        def preterminals(self) -> List[PTB.Tree]:
+        def preterminals(self) -> list[PTB.Tree]:
             """Returns the preterminal nodes of the tree.
             
             Examples:
@@ -307,7 +307,7 @@ class PTB(Dataset):
                 return preterminals
         
         @property
-        def constituents(self) -> List[str]:
+        def constituents(self) -> list[str]:
             """Returns the list of constituents (breadth-first search) of the tree.
             
             Examples:
@@ -324,7 +324,7 @@ class PTB(Dataset):
                 return constituents
             
         @property 
-        def FORM(self) -> List[str]:
+        def FORM(self) -> list[str]:
             """Returns the words of the terminal nodes of the tree.
             
             Examples:
@@ -335,7 +335,7 @@ class PTB(Dataset):
             return [leaf.label for leaf in self.leaves]
         
         @property 
-        def POS(self) -> List[str]:
+        def POS(self) -> list[str]:
             """Returns the PoS-tags of the preterminal nodes of the tree.
             
             Examples:
@@ -346,15 +346,15 @@ class PTB(Dataset):
             return [pre.label for pre in self.preterminals]
         
         @property
-        def tags(self) -> List[str]:
+        def tags(self) -> list[str]:
             return [pre.label for pre in self.preterminals]
                 
         @property 
-        def spans(self) -> List[PTB.Span]:
+        def spans(self) -> list[PTB.Span]:
             """Returns the list of spans."""
             return self.__spans()[0]
         
-        def __spans(self, start: int = 0) -> Tuple[List[PTB.Span], int]:
+        def __spans(self, start: int = 0) -> Tuple[list[PTB.Span], int]:
             if self.is_terminal() or self.is_preterminal():
                 return [], start+1
             else:
@@ -365,12 +365,12 @@ class PTB(Dataset):
                 return [PTB.Span(start, end, self.label), *spans], end 
             
         @classmethod
-        def from_spans(cls, nodes: List[PTB.Tree], spans: List[PTB.Span]) -> PTB.Tree:
+        def from_spans(cls, nodes: list[PTB.Tree], spans: list[PTB.Span]) -> PTB.Tree:
             """Builds a tree from a list of spans.
 
             Args:
-                nodes (List[PTB.Tree]): List of preterminal nodes.
-                spans (List[PTB.Span]): List of spans.
+                nodes (list[PTB.Tree]): List of preterminal nodes.
+                spans (list[PTB.Span]): List of spans.
 
             Returns:
                 PTB.Tree: Tree instance.
@@ -409,7 +409,7 @@ class PTB(Dataset):
             return tree
         
         @classmethod
-        def from_ptb(cls, line: str, ID: Optional[int] = None) -> PTB.Tree:
+        def from_ptb(cls, line: str, ID: int | None = None) -> PTB.Tree:
             """Builds a tree from the PTB format.
 
             Args:

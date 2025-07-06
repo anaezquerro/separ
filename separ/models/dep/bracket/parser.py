@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import List, Tuple, Dict, Union, Optional
 from argparse import ArgumentParser
 import torch
 
@@ -25,7 +24,7 @@ class BracketDependencyParser(DependencySLParser):
         def __repr__(self) -> str:
             return f'BracketDependencyLabeler(k={self.k})'
         
-        def encode(self, tree: CoNLL.Tree) -> Tuple[List[str], List[str]]:
+        def encode(self, tree: CoNLL.Tree) -> tuple[list[str], list[str]]:
             brackets = [[] for _ in range(len(tree))]
             for p, plane in tree.relaxed_planes.items():
                 if p >= self.k:
@@ -34,7 +33,7 @@ class BracketDependencyParser(DependencySLParser):
             brackets = [''.join(map(repr, sorted(bracket))) for bracket in brackets]
             return brackets, tree.DEPREL 
             
-        def encode_plane(self, arcs: List[Arc], p: int, brackets: List[List[Bracket]]) -> List[Bracket]:
+        def encode_plane(self, arcs: list[Arc], p: int, brackets: list[list[Bracket]]) -> list[Bracket]:
             for arc in arcs:
                 if arc.side == 1:
                     brackets[arc.DEP-1].append(Bracket('>', p))
@@ -45,7 +44,7 @@ class BracketDependencyParser(DependencySLParser):
                     brackets[arc.HEAD-1].append(Bracket('\\', p))
             return brackets 
             
-        def decode(self, brackets: List[str], rels: List[str]) -> Tuple[List[Arc], bool]:
+        def decode(self, brackets: list[str], rels: list[str]) -> tuple[list[Arc], bool]:
             brackets = list(map(Bracket.from_string, brackets))
             adjacent = torch.zeros(len(brackets) + 1, len(brackets) + 1, dtype=torch.bool)
             well_formed = True 
@@ -53,12 +52,12 @@ class BracketDependencyParser(DependencySLParser):
                 well_formed &= self.decode_plane(brackets, p, adjacent)
             return self.postprocess(adjacent, rels), well_formed
         
-        def decode_plane(self, brackets: List[List[Bracket]], p: int, adjacent: torch.Tensor) -> bool:
+        def decode_plane(self, brackets: list[list[Bracket]], p: int, adjacent: torch.Tensor) -> bool:
             """
             Decodes the brackets of an specific plane.
 
             Args:
-                brackets (List[List[Bracket]]): List of brackets of the same plane.
+                brackets (list[list[Bracket]]): List of brackets of the same plane.
                 p (int): Current plane.
                 adjacent (torch.Tensor): Adjacent matrix.
 
@@ -95,9 +94,9 @@ class BracketDependencyParser(DependencySLParser):
                     
     def __init__(
         self,
-        input_tkzs: List[InputTokenizer],
-        target_tkzs: List[TargetTokenizer],
-        model_confs: List[Config],
+        input_tkzs: list[InputTokenizer],
+        target_tkzs: list[TargetTokenizer],
+        model_confs: list[Config],
         k: int, 
         device: int
     ):
@@ -117,18 +116,18 @@ class BracketDependencyParser(DependencySLParser):
             tree.transformed = True 
         return tree 
             
-    def _pred(self, tree: CoNLL.Tree, bracket_pred: torch.Tensor, rel_pred: torch.Tensor) -> Tuple[CoNLL.Tree, bool]:
+    def _pred(self, tree: CoNLL.Tree, bracket_pred: torch.Tensor, rel_pred: torch.Tensor) -> tuple[CoNLL.Tree, bool]:
         rec, well_formed = self.lab.decode(self.BRACKET.decode(bracket_pred), self.REL.decode(rel_pred))
         return tree.rebuild_from_arcs(rec), well_formed
     
     @classmethod 
     def build(
         cls, 
-        data: Union[CoNLL, str],
+        data: str | CoNLL,
         enc_conf: Config,
         word_conf: Config, 
-        tag_conf: Optional[Config] = None,
-        char_conf: Optional[Config] = None,
+        tag_conf: Config | None = None,
+        char_conf: Config | None = None,
         k: int = 2,
         device: int = 0,
         **_

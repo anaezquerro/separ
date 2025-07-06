@@ -1,6 +1,5 @@
 from __future__ import annotations
 from argparse import ArgumentParser
-from typing import List, Tuple, Union, Optional
 import torch 
 
 from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, Arc 
@@ -17,19 +16,19 @@ class Bit4DependencyParser(DependencySLParser):
         
         - b0: word is a left dependant (0) or a right dependant (1) in the plane.
         - b1: word is the farthest dependant in the plane.
-        - b2: word has left dependants in the plane.
-        - b3: word has right dependants in the plane.
+        - b2: word has left dependents in the plane.
+        - b3: word has right dependents in the plane.
         """
         NUM_BITS = 4
         DEFAULT = '0000'
         
-        def __init__(self, proj: Optional[str] = None):
+        def __init__(self, proj: str | None = None):
             self.proj = proj
             
         def __repr__(self):
             return f'Bit4DependencyLabeler(proj={self.proj})'
         
-        def encode(self, tree: CoNLL.Tree) -> Tuple[List[str], List[str]]:
+        def encode(self, tree: CoNLL.Tree) -> tuple[list[str], list[str]]:
             if self.proj:
                 tree = tree.projectivize(self.proj)
             bits = [[False for _ in range(self.NUM_BITS)] for _ in range(len(tree))]
@@ -42,7 +41,7 @@ class Bit4DependencyParser(DependencySLParser):
                 bits[idep][3] = tree.ADJACENT[dep:, dep].any().item()
             return [''.join(map(str, map(int, label))) for label in bits], list(tree.DEPREL)
         
-        def decode(self, bits: List[str], rels: List[str]) -> Tuple[List[Arc], bool]:
+        def decode(self, bits: list[str], rels: list[str]) -> tuple[list[Arc], bool]:
             left, right = [], [0]
             well_formed = True 
             adjacent = torch.zeros(len(bits)+1, len(bits)+1, dtype=torch.bool)
@@ -73,13 +72,32 @@ class Bit4DependencyParser(DependencySLParser):
         
         def test(self, graph: CoNLL.Tree) -> bool:
             return super().test(graph.planarize(1))
-    
+        
+        def theoretical(self, tree: CoNLL.Tree) -> CoNLL.Tree:
+            rec = super().theoretical(tree)
+            if self.proj:
+                rec = rec.deprojectivize(self.proj)
+            return rec 
+        
+        def empirical(
+            self, 
+            tree: CoNLL.Tree,
+            known_labels: list[str],
+            known_rels: list[str],
+            LABEL: str, 
+            REL: str
+        ) -> CoNLL.Tree:
+            rec = super().empirical(tree, known_labels, known_rels, LABEL, REL)
+            if self.proj:
+                rec = rec.deprojectivize(self.proj)
+            return rec 
+            
     def __init__(
         self,
-        input_tkzs: List[InputTokenizer],
-        target_tkzs: List[TargetTokenizer],
-        model_confs: List[Config],
-        proj: Optional[str],
+        input_tkzs: list[InputTokenizer],
+        target_tkzs: list[TargetTokenizer],
+        model_confs: list[Config],
+        proj: str | None,
         device: int
     ):
         super().__init__(input_tkzs, target_tkzs, model_confs, device)
@@ -98,7 +116,7 @@ class Bit4DependencyParser(DependencySLParser):
             tree.transformed = True 
         return tree 
 
-    def _pred(self, tree: CoNLL.Tree, bit_pred: torch.Tensor, rel_pred: torch.Tensor) -> Tuple[CoNLL.Tree, bool]:
+    def _pred(self, tree: CoNLL.Tree, bit_pred: torch.Tensor, rel_pred: torch.Tensor) -> tuple[CoNLL.Tree, bool]:
         rec, well_formed = self.lab.decode(self.BIT.decode(bit_pred), self.REL.decode(rel_pred))
         rec = tree.rebuild_from_arcs(rec)
         if self.proj:
@@ -108,12 +126,12 @@ class Bit4DependencyParser(DependencySLParser):
     @classmethod 
     def build(
         cls, 
-        data: Union[CoNLL, str],
+        data: str | CoNLL,
         enc_conf: Config,
         word_conf: Config, 
-        tag_conf: Optional[Config] = None,
-        char_conf: Optional[Config] = None,
-        proj: Optional[str] = None,
+        tag_conf: Config | None = None,
+        char_conf: Config | None = None,
+        proj: str | None = None,
         device: int = 0,
         **_
     ) -> Bit4DependencyParser:

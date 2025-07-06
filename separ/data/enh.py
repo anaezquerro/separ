@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import List, Optional, Union
 import re 
 import numpy as np 
 
@@ -18,19 +17,19 @@ class EnhancedCoNLL(CoNLL):
         
         def __init__(
             self, 
-            nodes: List[EnhancedCoNLL.Graph.Node], 
-            arcs: List[Arc], 
-            ID: Optional[int] = None, 
-            annotations: Optional[List[Union[str, int]]] = None
+            nodes: list[EnhancedCoNLL.Graph.Node], 
+            arcs: list[Arc], 
+            ID: int | None = None, 
+            annotations: list[str | int] | None = None
         ):
             super().__init__(nodes, arcs, ID, annotations)
 
         @property
-        def POS(self) -> List[str]:
+        def POS(self) -> list[str]:
             return [node.UPOS for node in self.nodes]
         
         @property
-        def tags(self) -> List[str]:
+        def tags(self) -> list[str]:
             return [node.UPOS for node in self.nodes]
         
         @classmethod
@@ -83,12 +82,12 @@ class EnhancedCoNLL(CoNLL):
                 arcs += [Arc(head, node.ID, rel) for head, rel in enumerate(adjacent[node.ID]) if len(rel) > 0]
             return cls(nodes, arcs, ID=ID, annotations=annotations)
         
-        def rebuild_from_arcs(self, arcs: List[Arc]) -> EnhancedCoNLL.Graph:
+        def rebuild_from_arcs(self, arcs: list[Arc]) -> EnhancedCoNLL.Graph:
             """Rebuilds a graph with a new sequence of arcs, taking into account that repeated arcs must be 
             represented in the DEPS field.
 
             Args:
-                arcs (List[Arc]): New list of arcs.
+                arcs (list[Arc]): New list of arcs.
 
             Returns:
                 EnhancedCoNLL.Graph: New graph.

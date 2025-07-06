@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import List, Tuple
 
 
 class Bracket:
@@ -11,7 +10,7 @@ class Bracket:
         self.p = p
         
     @property
-    def order(self) -> Tuple[int, int]:
+    def order(self) -> tuple[int, int]:
         return self.PRIORITY.index(self.symbol), self.p
                     
     def __repr__(self) -> str:
@@ -46,7 +45,7 @@ class Bracket:
             return 1
         
     @classmethod
-    def from_string(cls, raw: str) -> List[Bracket]:
+    def from_string(cls, raw: str) -> list[Bracket]:
         brackets = []
         for c in raw:
             if c in cls.PRIORITY:

@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Tuple, Set, List, Set, Optional, Union
 import torch 
 
 from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, Arc
@@ -33,14 +32,14 @@ class Bit7DependencyParser(Bit4DependencyParser):
         def __repr__(self):
             return f'Bit7DependencyLabeler()'
         
-        def preprocess(self, graph: CoNLL.Tree) -> Tuple[Set[int], Set[int], Set[int], Set[int]]:
+        def preprocess(self, graph: CoNLL.Tree) -> tuple[set[int], set[int], set[int], set[int]]:
             """Obtain the dependants of each plane.
 
             Args:
                 graph (CoNLL.Tree): Input graph.
 
             Returns:
-                Tuple[List[int], List[int], List[int], List[int]]:: Dependants and heads of plane 1 and plane 2.
+                tuple[list[int], list[int], list[int], list[int]]:: Dependants and heads of plane 1 and plane 2.
             """
             if len(graph.planes) < 2:
                 return set(arc.DEP for arc in graph.planes[0]), set(arc.HEAD for arc in graph.planes[0]), set(), set()
@@ -52,7 +51,7 @@ class Bit7DependencyParser(Bit4DependencyParser):
             return set(arc.DEP for arc in plane1), set(arc.HEAD for arc in plane1),\
                 set(arc.DEP for arc in plane2), set(arc.HEAD for arc in plane2)
                 
-        def encode(self, graph: CoNLL.Tree) -> Tuple[List[str], List[str]]:
+        def encode(self, graph: CoNLL.Tree) -> tuple[list[str], list[str]]:
             deps1, heads1, deps2, heads2 = self.preprocess(graph)
             labels = [[False for _ in range(self.NUM_BITS)] for _ in range(len(graph))]
             for idep, head in enumerate(graph.HEAD):
@@ -72,7 +71,7 @@ class Bit7DependencyParser(Bit4DependencyParser):
                 labels[idep][2] = (max(others) if head < dep else min(others)) == dep
             return [''.join(map(str, map(int, label))) for label in labels], list(graph.DEPREL)
         
-        def decode(self, bits: List[str], rels: List[str]) -> Tuple[List[Arc], bool]:
+        def decode(self, bits: list[str], rels: list[str]) -> tuple[list[Arc], bool]:
             left1, right1 = [], [0]
             left2, right2 = [], []
             well_formed = True 
@@ -142,26 +141,26 @@ class Bit7DependencyParser(Bit4DependencyParser):
             
     def __init__(
         self,
-        input_tkzs: List[InputTokenizer],
-        target_tkzs: List[TargetTokenizer],
-        model_confs: List[Config],
+        input_tkzs: list[InputTokenizer],
+        target_tkzs: list[TargetTokenizer],
+        model_confs: list[Config],
         device: int
     ):
         super(Bit4DependencyParser, self).__init__(input_tkzs, target_tkzs, model_confs, device)
         self.lab = self.Labeler()
         
-    def _pred(self, tree: CoNLL.Tree, bit_pred: torch.Tensor, rel_pred: torch.Tensor) -> Tuple[CoNLL.Tree, bool]:
+    def _pred(self, tree: CoNLL.Tree, bit_pred: torch.Tensor, rel_pred: torch.Tensor) -> tuple[CoNLL.Tree, bool]:
         rec, well_formed = self.lab.decode(self.BIT.decode(bit_pred), self.REL.decode(rel_pred))
         return tree.rebuild_from_arcs(rec), well_formed        
     
     @classmethod
     def build(
         cls, 
-        data: Union[CoNLL, str],
+        data: str | CoNLL,
         enc_conf: Config,
         word_conf: Config, 
-        tag_conf: Optional[Config] = None,
-        char_conf: Optional[Config] = None,
+        tag_conf: Config | None = None,
+        char_conf: Config | None = None,
         device: int = 0,
         **_
     ) -> Bit7DependencyParser:

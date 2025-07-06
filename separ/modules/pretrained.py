@@ -1,4 +1,3 @@
-from typing import List, Tuple
 from torch import nn 
 from transformers import AutoModel
 import torch 
@@ -15,13 +14,13 @@ class PretrainedEmbedding(nn.Module):
     DEFAULT_MAX_LEN = 512
     
     def __init__(
-            self, 
-            pretrained: str, 
-            pad_index: int, 
-            vocab_size: int,
-            finetune: bool,
-            **_
-        ):
+        self, 
+        pretrained: str, 
+        pad_index: int, 
+        vocab_size: int,
+        finetune: bool,
+        **_
+    ):
         super().__init__()
         self.pretrained = pretrained
         self.finetune = finetune
@@ -34,7 +33,7 @@ class PretrainedEmbedding(nn.Module):
     def __repr__(self) -> str:
         return f'PretrainedEmbedding(pretrained={self.pretrained}, embed_size={self.embed_size}, finetune={self.finetune})'
 
-    def forward(self, x: Tuple[torch.Tensor, List[torch.Tensor]]) -> torch.Tensor:
+    def forward(self, x: tuple[torch.Tensor, list[torch.Tensor]]) -> torch.Tensor:
         words, lens = x
         mask = (words != self.pad_index).to(torch.int32)
         if words.shape[-1] > self.max_len:

@@ -1,5 +1,4 @@
 
-from typing import Optional, List, Dict
 import torch 
 
 from separ.data.tkz.input import InputTokenizer
@@ -11,8 +10,8 @@ class TargetTokenizer(InputTokenizer):
     def __init__(
         self,
         name: str,
-        field: Optional[str] = None,
-        vocab_size: Optional[int] = None,
+        field: str | None = None,
+        vocab_size: int | None = None,
         pad_token: str = InputTokenizer.PAD_TOKEN,
         unk_token: str = InputTokenizer.UNK_TOKEN,
         lower: bool = False
@@ -23,7 +22,7 @@ class TargetTokenizer(InputTokenizer):
         Args:
             name (str): Name of the tokenizer.
             field (str): Field associated to load data.
-            vocab_size (Optional[int]): Maximum number of tokens.
+            vocab_size (int | None): Maximum number of tokens.
             pad_token (str): Padding token.
             lower (bool): Whether to store only lowercase tokens.
         """
@@ -59,10 +58,10 @@ class TargetTokenizer(InputTokenizer):
         raise NotImplementedError
     
     @property
-    def special_tokens(self) -> Dict[str, int]:
+    def special_tokens(self) -> dict[str, int]:
         return {self.pad_token: self.pad_index, self.unk_token: self.unk_index}
     
-    def encode(self, tokens: List[str], *_, **__) -> torch.Tensor:
+    def encode(self, tokens: list[str], *_, **__) -> torch.Tensor:
         # call super class but never with BoS or EoS tokens
         return super().encode(tokens, bos=False, eos=False)
     

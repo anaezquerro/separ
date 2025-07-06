@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Callable, Optional
 import torch
 import torch.nn as nn
 
@@ -41,8 +40,8 @@ class Biaffine(nn.Module):
         self,
         n_in: int,
         n_out: int = 1,
-        n_proj: Optional[int] = None,
-        dropout: Optional[float] = 0,
+        n_proj: int | None = None,
+        dropout: float = 0.0,
         scale: int = 0,
         bias_x: bool = True,
         bias_y: bool = True,

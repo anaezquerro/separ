@@ -29,7 +29,7 @@ python3 run.py dep-idx -c configs/xlnet.ini -d 0\
 
 Or for multi-GPU training:
 ```shell 
-CUDA_VISIBLE_DEVICES="0,2,3" torchrun --nproc_per_node=3 run.py dep-idx -c configs/xlnet.ini -d 0 \
+CUDA_VISIBLE_DEVICES="0,2,3" torchrun --nproc_per_node=3 run.py dep-idx -c configs/xlnet.ini \
     train --train treebanks/english-ewt/train.conllu \
     --dev treebanks/english-ewt/dev.conllu \
     --test treebanks/english-ewt/test.conllu \

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Tuple, Optional, Union, Iterable
+from typing import Iterable
 from argparse import ArgumentParser
 import torch
 
@@ -22,14 +22,14 @@ class Tagger(Parser):
         return argparser
     
     @property
-    def FIELDS(self) -> List[str]:
+    def FIELDS(self) -> list[str]:
         return self.TARGET_FIELDS
     
     @property
     def METRIC(self) -> TaggingMetric:
         return TaggingMetric(self.target_tkzs)
     
-    def collate(self, sens: List[Sentence]) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[torch.Tensor], List[Sentence]]:
+    def collate(self, sens: list[Sentence]) -> tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor], list[Sentence]]:
         inputs = [tkz.batch_encode(sens, pin=False) for tkz in self.input_tkzs]
         targets = [tkz.batch_encode(sens, mode='cat', pin=False) for tkz in self.target_tkzs]
         mask = get_mask(list(map(len, sens)))
@@ -37,10 +37,10 @@ class Tagger(Parser):
     
     def train_step(
         self,
-        inputs: List[torch.Tensor], 
-        masks: List[torch.Tensor],
-        targets: List[torch.Tensor]
-    ) -> Tuple[torch.Tensor, ControlMetric]:
+        inputs: list[torch.Tensor], 
+        masks: list[torch.Tensor],
+        targets: list[torch.Tensor]
+    ) -> tuple[torch.Tensor, ControlMetric]:
         scores = self.model(inputs[0], inputs[1:], *masks)
         loss = self.model.loss(scores, targets)
         return loss, ControlMetric(loss=loss.detach(), **dict(zip(self.TARGET_FIELDS, map(acc, scores, targets))))
@@ -48,11 +48,11 @@ class Tagger(Parser):
     @torch.no_grad()
     def eval_step(
         self, 
-        inputs: List[torch.Tensor],
-        masks: List[torch.Tensor],
-        targets: List[torch.Tensor],
-        _: List[Sentence]
-    ) -> Tuple[ControlMetric, TaggingMetric]:
+        inputs: list[torch.Tensor],
+        masks: list[torch.Tensor],
+        targets: list[torch.Tensor],
+        _: list[Sentence]
+    ) -> tuple[ControlMetric, TaggingMetric]:
         scores = self.model(inputs[0], inputs[1:], *masks)
         loss = self.model.loss(scores, targets)
         preds = self.model.predict(scores)
@@ -61,16 +61,16 @@ class Tagger(Parser):
     @torch.no_grad()
     def pred_step(
         self,
-        inputs: List[torch.Tensor],
-        masks: List[torch.Tensor],
-        sens: List[Sentence]
+        inputs: list[torch.Tensor],
+        masks: list[torch.Tensor],
+        sens: list[Sentence]
     ) -> Iterable[Sentence]:
         scores = self.model(inputs[0], inputs[1:], *masks)
         preds = self.model.predict(scores)
         preds = [pred.split(mask.sum(-1).tolist()) for pred, mask in zip(preds, masks)]
         return map(self._pred, sens, *preds)
             
-    def _pred(self, sen: Sentence, *preds: List[torch.Tensor]) -> Sentence:
+    def _pred(self, sen: Sentence, *preds: list[torch.Tensor]) -> Sentence:
         for tkz, pred in zip(self.target_tkzs, preds):
             sen.rebuild(tkz.field, tkz.decode(pred))
         return sen 
@@ -78,11 +78,11 @@ class Tagger(Parser):
     @classmethod
     def build(
         cls,
-        data: Union[str, Dataset],
-        fields: List[str],
+        data: str | Dataset,
+        fields: list[str],
         enc_conf: Config,
         word_conf: Config,
-        char_conf: Optional[Config] = None,
+        char_conf: Config | None = None,
         device: int = 0,
         **_
     ) -> Tagger:

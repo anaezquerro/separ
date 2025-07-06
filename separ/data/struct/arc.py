@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Union
 import numpy as np 
 
 class Arc:
@@ -14,7 +13,7 @@ class Arc:
     def __repr__(self) -> str:
         return f'{self.HEAD} --({self.REL})--> {self.DEP}'
     
-    def __contains__(self, other: Union[int, Arc]):
+    def __contains__(self, other: int | Arc):
         if isinstance(other, Arc):
             return other.HEAD in self.range and other.DEP in self.range
         elif isinstance(other, int):

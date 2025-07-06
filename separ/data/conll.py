@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Union, Optional, Dict, Iterable 
+from typing import Iterable 
 import re 
 import numpy as np 
 
@@ -23,29 +23,29 @@ class CoNLL(Dataset):
 
         def __init__(
             self,
-            nodes: List[CoNLL.Tree.Node], 
-            arcs: List[Arc],
-            ID: Optional[int] = None,
-            annotations: Optional[List[Union[str, int]]] = None
+            nodes: list[CoNLL.Tree.Node], 
+            arcs: list[Arc],
+            ID: int | None = None,
+            annotations: list[str | int] | None = None
         ):
             """
             Initialization of a CoNLL tree.
             
             Args:
-                nodes (List[CoNLL.Tree.Node]): Nodes of the tree (tokens).
+                nodes (list[CoNLL.Tree.Node]): Nodes of the tree (tokens).
                 ID (Optional[int]): Number of the tree in the global dataset.
-                annotations (Optional[List[Union[str, int]]]): List of annotations or node position.
+                annotations (list[str | int] | None): List of annotations or node position.
             """
             super().__init__(nodes, arcs, ID, annotations)
             assert len(arcs) == len(nodes), 'Number of arcs and nodes must match'
             assert not has_cycles(self.ADJACENT), 'A dependency tree does not have cycles'
             
                 
-        def rebuild_from_arcs(self, new_arcs: List[Arc]) -> CoNLL.Tree:
+        def rebuild_from_arcs(self, new_arcs: list[Arc]) -> CoNLL.Tree:
             """Rebuilds a dependency tree from a new list of arcs.
 
             Args:
-                new_arcs (List[Arc]): New arcs.
+                new_arcs (list[Arc]): New arcs.
 
             Returns:
                 CoNLL.Tree: New dependency tree.
@@ -80,7 +80,7 @@ class CoNLL(Dataset):
             return cls(nodes, arcs, ID, annotations)
         
         @property
-        def HEAD(self) -> List[int]:
+        def HEAD(self) -> list[int]:
             return [node.HEAD for node in self.nodes]
         
         @property
@@ -92,11 +92,11 @@ class CoNLL(Dataset):
             return np.array(self.DEPREL, dtype=np.object_)
         
         @property
-        def planes(self) -> Dict[int, List[Arc]]:
+        def planes(self) -> dict[int, list[Arc]]:
             """Breadth-first plane assignment (starting from node 0 to next-level dependents). 
             
             Returns:
-                Dict[int, List[Arc]]: Plane assignment.
+                dict[int, list[Arc]]: Plane assignment.
             """
             if self._planes is None:
                 # store the planes 
@@ -113,11 +113,11 @@ class CoNLL(Dataset):
             return self._planes
         
         @property
-        def relaxed_planes(self) -> Dict[int, List[Arc]]:
+        def relaxed_planes(self) -> dict[int, list[Arc]]:
             """Breadth-first relaxed plane assignment. Relaxed planes allow crossing arcs in different directions.
 
             Returns:
-                Dict[int, List[Arc]]: Relaxed plane assignment.
+                dict[int, list[Arc]]: Relaxed plane assignment.
             """
             if self._relaxed_planes is None:
                 self._relaxed_planes = {0: []}
@@ -230,7 +230,7 @@ class CoNLL(Dataset):
         return cls(trees, path)
     
     
-def bfs(arcs: List[Arc]) -> Iterable[Arc]:
+def bfs(arcs: list[Arc]) -> Iterable[Arc]:
     """Breadth-first search of the arcs of a tree."""
     queue = [0]
     while len(queue) > 0:

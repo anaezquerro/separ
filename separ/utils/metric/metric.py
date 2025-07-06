@@ -4,7 +4,7 @@ import pickle, torch, os
 import torch.distributed as dist
 
 from separ.utils.fn import mkftemp, folderpath 
-
+from separ.utils.shard import is_distributed
 class Metric:
     METRICS = [] 
     ATTRIBUTES = []
@@ -76,8 +76,9 @@ class Metric:
         return m
     
     def sync(self) -> Metric:
-        for name in self.ATTRIBUTES:
-            dist.all_reduce(getattr(self, name), op=dist.ReduceOp.SUM)
+        if is_distributed():
+            for name in self.ATTRIBUTES:
+                dist.all_reduce(getattr(self, name), op=dist.ReduceOp.SUM)
         return self
             
     def to(self, device: int) -> Metric:

@@ -1,18 +1,17 @@
 from torch.utils.data import Sampler
-from typing import List, Dict, Optional
-import random
+import random, os
 
 from separ.utils.fn import interleave
+from separ.utils.shard import is_distributed, local_rank
 from separ.utils.common import WORLD_SIZE
 
 
 class TokenizedBatchSampler(Sampler):
     def __init__(
         self, 
-        lens: Dict[int, int], 
+        lens: dict[int, int], 
         batch_size: int, 
-        shuffle: bool = False, 
-        device: Optional[int] = None
+        shuffle: bool = False
     ):
         """
         Token-based batchification.
@@ -29,7 +28,6 @@ class TokenizedBatchSampler(Sampler):
         for index, length in lens.items():
             self.lmap[length].append(index)
         self.batch_size = batch_size
-        self.device = device 
         self.shuffle = shuffle
         self.set_epoch(0)
         
@@ -44,8 +42,8 @@ class TokenizedBatchSampler(Sampler):
                 random.shuffle(self.lmap[length])
             indices += self.lmap[length]
         self._indices = indices 
-        if self.device is not None:
-            self._indices = self._indices[self.device:len(self.lens):WORLD_SIZE]
+        if is_distributed():
+            self._indices = self._indices[local_rank():len(self.lens):WORLD_SIZE]
         
     def generate_batches(self):
         """
@@ -55,7 +53,7 @@ class TokenizedBatchSampler(Sampler):
         indices = self.indices
         batches = []
         if self.shuffle:
-            if self.device is not None: # ensure that similar lengths in each device are selected
+            if is_distributed(): # ensure that similar lengths in each device are selected
                 random.seed(self.epoch)
             while len(indices) > 0:
                 center = random.randint(0, len(indices)-1)
@@ -82,7 +80,7 @@ class TokenizedBatchSampler(Sampler):
         self._batches = batches 
     
     @property
-    def indices(self) -> List[int]:
+    def indices(self) -> list[int]:
         """
         Generates the list of dataset indices maintaining length order.
         
@@ -95,11 +93,11 @@ class TokenizedBatchSampler(Sampler):
         return self._indices.copy()
 
     @property
-    def batches(self) -> List[List[int]]:
+    def batches(self) -> list[list[int]]:
         """Generate the batches.
 
         Returns:
-            List[List[int]]: List of batches.
+            list[list[int]]: List of batches.
         """
         return self._batches.copy()
                 
