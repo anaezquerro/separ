@@ -54,8 +54,7 @@ class TagModel(Model):
         Returns:
             torch.Tensor.
         """
-        return sum(map(self.criteria, scores, targets))
-    
+        return sum(filter(lambda x: not x.isnan(), map(self.criteria, scores, targets)))        
     
     def predict(self, scores: list[torch.Tensor]) -> list[torch.Tensor]:
         """Prediction of the tagging model.
@@ -75,4 +74,5 @@ class TagModel(Model):
                 score[:, conf.special_indices] = score.min()-1
             preds.append(score.argmax(-1))
         return preds 
+    
     

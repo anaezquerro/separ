@@ -124,8 +124,15 @@ class InputTokenizer:
         if isinstance(tokens, Sentence):
             tokens = getattr(tokens, self.field)
         indices = list(map(self.enc, tokens))
+        if not hasattr(self, 'bos'):
+            self.bos = self.bos_token is not None 
+        if not hasattr(self, 'eos'):
+            self.eos = self.eos_token is not None
         if self.bos or bos:
-            indices = [self.bos_index] + indices
+            try:
+                indices = [self.bos_index] + indices
+            except NotImplementedError:
+                pass
         if self.eos or eos:
             indices.append(self.eos_index)
         return torch.tensor(indices, dtype=torch.long)

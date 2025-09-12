@@ -11,8 +11,8 @@ class Graph(Sentence):
         self, 
         nodes: list[Sentence.Node], 
         arcs: list[Arc], 
-        ID: Optional[int] = None,
-        annotations: Optional[list[Union[int, str]]] = None
+        ID: int | None = None,
+        annotations: list[int | str] | None = None
     ):
         """Abstract representation of a graph, which adds a list of arcs to a sentence..
 
@@ -34,7 +34,8 @@ class Graph(Sentence):
         self._cycles = None 
         self.transformed = False 
         
-
+    def __hash__(self):
+        return super().__hash__()
         
     def rebuild_from_arcs(self, new_arcs: list[Arc]) -> Graph:
         raise NotImplementedError
@@ -247,14 +248,19 @@ class Graph(Sentence):
         self._cycles = list(cycles(self.ADJACENT))
         return self._cycles
     
-    def to_tikz(self) -> str:
+    def to_tikz(self, add_root: bool = False) -> str:
         latex = r'\begin{dependency}' + '\n\t' + r'\begin{deptext}' + '\n\t\t'
         # add words
-        latex += r'\& '.join(node.FORM for node in self.nodes)
+        if add_root:
+            latex += r'\texttt{<b>} ' 
+        latex += r' \& '.join(node.FORM for node in self.nodes)
         latex += r'\\'  + '\n\t' + r'\end{deptext}' + '\n\t'
         # add edges 
-        latex +=  '\n\t'.join(r'\depedge{' + str(arc.HEAD) + '}{' + str(arc.DEP) + '}{' + arc.REL + '}' for arc in self.arcs if arc.HEAD != 0) + '\n\t'
-        latex += '\n\t'.join(r'\deproot{' + str(arc.DEP) + '}{' + str(arc.REL) + '}' for arc in self.arcs if arc.HEAD == 0) + '\n'
+        if not add_root:
+            latex +=  '\n\t'.join(r'\depedge{' + str(arc.HEAD) + '}{' + str(arc.DEP) + '}{' + arc.REL + '}' for arc in self.arcs if arc.HEAD != 0) + '\n\t'
+            latex += '\n\t'.join(r'\deproot{' + str(arc.DEP) + '}{' + str(arc.REL) + '}' for arc in self.arcs if arc.HEAD == 0) + '\n'
+        else:
+            latex +=  '\n\t'.join(r'\depedge{' + str(arc.HEAD+1) + '}{' + str(arc.DEP+1) + '}{' + arc.REL + '}' for arc in self.arcs) + '\n\t'
         latex += r'\end{dependency}'
         return latex
         
@@ -277,6 +283,8 @@ class Graph(Sentence):
                 arc.HEAD = arc.DEP 
                 arc.REL = matches[0]
         return arcs
+    
+
     
 def has_cycles(adjacent: torch.Tensor) -> bool:
     """Checks whether the adjacent matrix contains cycles.

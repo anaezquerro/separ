@@ -5,13 +5,13 @@ import torch
 from separ.data.struct import Arc, Bracket 
 from separ.utils import flatten, Config, bar 
 from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, Arc
-from separ.models.dep.parser import DependencySLParser
+from separ.models.dep.sl import DependencySLParser
 
 
 class BracketDependencyParser(DependencySLParser):
     """Bracket Dependency Parser from [Strzyz et al., 2019](https://aclanthology.org/N19-1077/)."""
     NAME = 'dep-bracket'
-    PARAMS = ['k']
+    PARAMS = DependencySLParser.PARAMS | {'k'}
     
     class Labeler(DependencySLParser.Labeler):
         """Bracketing encoding for k-planar dependency trees"""
@@ -92,15 +92,8 @@ class BracketDependencyParser(DependencySLParser):
         def test(self, tree: CoNLL.Tree) -> bool:
             return super().test(tree.relaxed_planarize(self.k))
                     
-    def __init__(
-        self,
-        input_tkzs: list[InputTokenizer],
-        target_tkzs: list[TargetTokenizer],
-        model_confs: list[Config],
-        k: int, 
-        device: int
-    ):
-        super().__init__(input_tkzs, target_tkzs, model_confs, device)
+    def __init__(self, k: int, **kwargs):
+        super().__init__(**kwargs)
         self.k = k
         self.lab = self.Labeler(k)
 
@@ -135,7 +128,7 @@ class BracketDependencyParser(DependencySLParser):
         if isinstance(data, str):
             data = CoNLL.from_file(data)
         
-        if 'pretrained' in word_conf:
+        if hasattr(word_conf, 'pretrained'):
             input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
             in_confs = [word_conf | input_tkzs[-1].conf, None, None]
         else:
@@ -163,4 +156,10 @@ class BracketDependencyParser(DependencySLParser):
         brackets, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
         bracket_tkz.train(brackets)
         rel_tkz.train(rels)
-        return cls(input_tkzs, [bracket_tkz, rel_tkz], [enc_conf, *in_confs, bracket_tkz.conf, rel_tkz.conf], k, device)
+        return cls(
+            input_tkzs=input_tkzs,
+            target_tkzs=[bracket_tkz, rel_tkz],
+            model_confs=[enc_conf, *in_confs, bracket_tkz.conf, rel_tkz.conf], 
+            k=k,
+            device=device
+        )

@@ -5,8 +5,8 @@ import torch, random
 import numpy as np 
 
 from separ.data.sampler import TokenizedBatchSampler
-from separ.utils.fn import filename, listdir
-from separ.utils.common import WORLD_SIZE
+from separ.utils.fn import filename, listdir, mkftemp
+from separ.utils.shard import WORLD_SIZE
 from separ.data.struct.sentence import Sentence
     
 class Dataset(torch.utils.data.Dataset):
@@ -17,7 +17,6 @@ class Dataset(torch.utils.data.Dataset):
         super().__init__()
         self.sens = sens 
         self.path = path 
-        
         
     def __repr__(self):
         return f'{self.__class__.__name__}(path={self.path}, n={len(self)})'
@@ -56,8 +55,11 @@ class Dataset(torch.utils.data.Dataset):
         batch_size: int, 
         shuffle: bool, 
         collate: Callable, 
+        lens: dict[int, int] | None = None
     ) -> tuple[DataLoader, Sampler]:
-        sampler = TokenizedBatchSampler(self.lens, batch_size=batch_size, shuffle=shuffle)
+        if lens is None:
+            lens = self.lens
+        sampler = TokenizedBatchSampler(lens, batch_size=batch_size, shuffle=shuffle)
         loader = DataLoader(self, batch_sampler=sampler, collate_fn=collate, shuffle=False, pin_memory=True)
         return loader, sampler 
     
@@ -84,4 +86,5 @@ class Dataset(torch.utils.data.Dataset):
     def from_folder(cls, folder: str) -> Dataset:
         paths = [path for path in listdir(folder, absolute=True) if path.endswith(cls.EXTENSION)]
         return cls.from_files(paths)
+    
     

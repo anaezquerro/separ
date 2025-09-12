@@ -222,7 +222,7 @@ class CoNLL(Dataset):
                 arc.HEAD = self.ADJACENT[arc.HEAD].int().argmax().item()
                 planar = self.rebuild_from_arcs(fixed + crosses).planarize(k)
                 return planar 
-        
+            
     @classmethod
     def from_file(cls, path: str) -> CoNLL:
         blocks = re.split('\n{2,}', open(path, 'r').read().strip())

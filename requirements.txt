@@ -5,3 +5,6 @@ pandas
 torch
 transformers
 wandb
+scikit-learn
+plotly
+sentencepiece

@@ -1,6 +1,5 @@
 from __future__ import annotations
 import numpy as np 
-
 class Arc:
     def __init__(self, HEAD: int, DEP: int, REL: str):
         self.HEAD = HEAD 
@@ -111,3 +110,17 @@ class Arc:
     
     def is_right(self) -> bool:
         return self.DEP > self.HEAD 
+    
+    def leans(self, arc: Arc) -> bool:
+        return arc.covers(self) and (self.right == arc.right or self.left == arc.left)
+    
+    def covers(self, arc: Arc) -> bool:
+        if arc.left == self.left and arc.right == self.right:
+            return False 
+        return self.left <= arc.left and arc.right <= self.right
+    
+    def is_covered(self, arc: Arc) -> bool:
+        return arc.covers(self)
+    
+    def is_connected(self, arc: Arc) -> bool:
+        return self.HEAD in [arc.HEAD, arc.DEP] or self.DEP in [arc.HEAD, arc.DEP]

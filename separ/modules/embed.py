@@ -1,9 +1,10 @@
 from torch import nn 
-from torch.nn.utils.rnn import PackedSequence, pack_sequence, pad_packed_sequence
-from typing import Union 
+from torch.nn.utils.rnn import PackedSequence, pack_sequence, pad_packed_sequence, pad_sequence
 import torch, math
 from einops import rearrange
 
+
+from separ.utils.fn import get_mask, split
 class Embedding(nn.Module):
     def __init__(self, vocab_size: int, embed_size: int, pad_index: int):
         super().__init__()
@@ -18,13 +19,20 @@ class Embedding(nn.Module):
         nn.init.normal_(self.embed.weight, 0, self.embed.embedding_dim ** -0.5)
         nn.init.zeros_(self.embed.weight[self.pad_index])
     
-    def forward(self, inputs: Union[torch.Tensor, PackedSequence]) -> Union[torch.Tensor, PackedSequence]:
+    def forward(self, inputs: torch.Tensor | PackedSequence | tuple[torch.Tensor, list[int]]) -> torch.Tensor | PackedSequence:
         if isinstance(inputs, torch.Tensor):
             return self.embed(inputs)
-        else:
+        elif isinstance(inputs, PackedSequence):
             _, lens = pad_packed_sequence(inputs, batch_first=True)
             embed = self.embed(inputs.data).split(lens.tolist())
             return pack_sequence(embed, enforce_sorted=False)
+        else:
+            words, lens = inputs
+            mask = get_mask(list(map(sum, lens)))
+            embed = self.embed(words)[mask]
+            embed = torch.stack([x.mean(0) for x in embed.split(torch.cat(lens).tolist())], dim=0)
+            embed = pad_sequence(embed.split(list(map(len, lens))), batch_first=True, padding_value=0.0)
+            return embed
             
             
 class SinusoidalPositionalEmbedding(nn.Module):

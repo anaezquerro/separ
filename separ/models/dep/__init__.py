@@ -9,13 +9,7 @@ from .hier import *
 from .hexa import *
 
 DEP_PARSERS = [
-    IndexDependencyParser,
-    PoSDependencyParser, 
-    BracketDependencyParser, 
-    HierarchicalBracketDependencyParser,
-    Bit4DependencyParser, 
-    Bit7DependencyParser, 
-    HexaTaggingDependencyParser, 
-    ArcEagerDependencyParser,
-    BiaffineDependencyParser, 
+    IndexDependencyParser, PoSDependencyParser, BracketDependencyParser, 
+    HierarchicalDependencyParser, Bit4DependencyParser, Bit7DependencyParser, 
+    HexaTaggingDependencyParser, ArcEagerDependencyParser, BiaffineDependencyParser, 
 ]

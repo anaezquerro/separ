@@ -1,8 +1,12 @@
-from typing import Iterator, List, Union
-from transformers import AutoConfig
-import torch, os, tempfile, shutil, random, pickle 
+from typing import Iterator, List, Union, Iterable
+from transformers import AutoTokenizer
+import torch, os, tempfile, shutil, random, pickle, subprocess, re
 import numpy as np 
 from torch.nn.utils.rnn import PackedSequence
+
+
+def is_float(s: str) -> bool:
+    return re.fullmatch(r'[0-9]+\.[0-9]+', s.strip()) is not None
 
 def flatten(*lists, levels: int = -1) -> list:
     result = []
@@ -19,6 +23,8 @@ def to(device: int, *tensors) -> List[torch.Tensor]:
     for x in tensors:
         if isinstance(x, torch.Tensor) or isinstance(x, PackedSequence):
             out.append(x.to(device))
+        elif not isinstance(x, Iterable):
+            out.append(x)
         else:
             out.append(to(device, *x))
     return out 
@@ -59,16 +65,15 @@ def mkdtemp() -> str:
 def mkftemp() -> str:
     tmp_folder = tempfile.mkdtemp()
     shutil.rmtree(tmp_folder)
+    os.makedirs('.tmp', exist_ok=True)
     tmp_path = '.tmp/' + tmp_folder.split('/')[-1]
     return tmp_path
 
-def div(num: Union[torch.Tensor, float], dem: Union[torch.Tensor, float]) -> float:
-    if dem == 0 and num > 0:
-        return 0 
-    elif dem == 0 and num == 0:
-        return 1.0
+def div(num: Union[torch.Tensor, float], den: Union[torch.Tensor, float]) -> float:
+    if isinstance(den, torch.Tensor):
+        return torch.where(den == 0, num == den, num/den)
     else:
-        return float(num/dem)
+        return num/den if den > 0 else (num == 0)*1.0
     
 def folderpath(path: str) -> str:
     return '/'.join(path.split('/')[:-1])
@@ -84,6 +89,8 @@ def acc(preds: torch.Tensor, golds: torch.Tensor) -> torch.Tensor:
     Returns:
         torch.Tensor: Accuracy.
     """
+    if len(golds) == len(preds) == 0:
+        return torch.tensor(100.0)
     if preds.ndim > golds.ndim:
         preds = preds.argmax(-1)
     return (100.*(preds.to(torch.int32) == golds.to(torch.int32))).mean().detach()
@@ -99,14 +106,14 @@ def split(items, lens: Union[List[int], int]):
     return result
     
 def max_len(pretrained: str, default: int = 512) -> int:
-    config = AutoConfig.from_pretrained(pretrained)
-    try:
-        if config.max_position_embeddings > 1:
-            return config.max_position_embeddings
+    tkz = AutoTokenizer.from_pretrained(pretrained)
+    if hasattr(tkz, 'model_max_length'):
+        if tkz.model_max_length < 1:
+            return torch.inf 
         else:
-            return default 
-    except AttributeError:
-        return default
+            return tkz.model_max_length
+    else:
+        return default 
     
 
 def avg(nums) -> int:
@@ -192,3 +199,9 @@ def macro_fscore(scores: torch.Tensor, gold: torch.Tensor, threshold: float = 0.
 def save(obj, path: str):
     with open(path, 'wb') as writer:
         pickle.dump(obj, writer, protocol=pickle.HIGHEST_PROTOCOL)
+        
+        
+def shell(command: str) -> str:
+    """Runs a command in shell and returns the output."""
+    return subprocess.run(command.split(), capture_output=True, text=True)
+    

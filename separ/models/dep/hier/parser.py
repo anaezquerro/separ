@@ -3,14 +3,14 @@ from argparse import ArgumentParser
 import torch 
 
 from separ.models.dep.bracket.parser import BracketDependencyParser
-from separ.models.dep.parser import DependencySLParser
+from separ.models.dep.sl import DependencySLParser
 from separ.data.struct import Bracket, Arc, Graph
 from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer
 from separ.utils import Config, flatten, bar
 
-class HierarchicalBracketDependencyParser(BracketDependencyParser):
+class HierarchicalDependencyParser(BracketDependencyParser):
     NAME = 'dep-hier'
-    PARAMS = ['variant']
+    PARAMS = DependencySLParser.PARAMS | {'variant'}
     
     class Bracket(Bracket):
         def __init__(self, symbol: str, structural: bool, p: int = 0, match: int = 0):
@@ -28,14 +28,14 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
         def __repr__(self) -> str:
             return f'{self.symbol}' + ('^'*self.structural) + '*'*self.p
         
-        def __lt__(self, other: HierarchicalBracketDependencyParser.Bracket) -> str:
+        def __lt__(self, other: HierarchicalDependencyParser.Bracket) -> str:
             return self.order < other.order
         
         def add_cross(self):
             self.p += 1
             
         @classmethod
-        def from_string(cls, raw: str) -> list[HierarchicalBracketDependencyParser.Bracket]:
+        def from_string(cls, raw: str) -> list[HierarchicalDependencyParser.Bracket]:
             brackets = []
             for c in raw:
                 if c in cls.PRIORITY:
@@ -99,18 +99,18 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
             
             for structural, auxiliar in ropes:
                 if structural.is_left():
-                    labels[structural.DEP-1].append(HierarchicalBracketDependencyParser.Bracket('<', structural=True, match=structural.HEAD))
-                    labels[structural.HEAD-1].append(HierarchicalBracketDependencyParser.Bracket('\\', structural=True, match=structural.DEP))
+                    labels[structural.DEP-1].append(HierarchicalDependencyParser.Bracket('<', structural=True, match=structural.HEAD))
+                    labels[structural.HEAD-1].append(HierarchicalDependencyParser.Bracket('\\', structural=True, match=structural.DEP))
                 else:
-                    labels[structural.DEP-1].append(HierarchicalBracketDependencyParser.Bracket('>', structural=True, match=structural.HEAD))
+                    labels[structural.DEP-1].append(HierarchicalDependencyParser.Bracket('>', structural=True, match=structural.HEAD))
                     if structural.HEAD != 0:
-                        labels[structural.HEAD-1].append(HierarchicalBracketDependencyParser.Bracket('/', structural=True, match=structural.DEP))
+                        labels[structural.HEAD-1].append(HierarchicalDependencyParser.Bracket('/', structural=True, match=structural.DEP))
                 
                 for arc in auxiliar:
                     if arc.left == structural.left:
-                        labels[arc.DEP-1].append(HierarchicalBracketDependencyParser.Bracket('>', structural=False, match=arc.HEAD))
+                        labels[arc.DEP-1].append(HierarchicalDependencyParser.Bracket('>', structural=False, match=arc.HEAD))
                     else:
-                        labels[arc.DEP-1].append(HierarchicalBracketDependencyParser.Bracket('<', structural=False, match=arc.HEAD))
+                        labels[arc.DEP-1].append(HierarchicalDependencyParser.Bracket('<', structural=False, match=arc.HEAD))
             return [''.join(map(repr, sorted(label))) for label in labels]
         
         def encode_nonp(self, graph: Graph) -> list[str]:
@@ -123,15 +123,15 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
                     for bracket in middle:
                         if bracket.is_left() and bracket.structural:
                             bracket.add_cross()
-                    labels[structural.DEP-1].append(HierarchicalBracketDependencyParser.Bracket('<', structural=True, p=0, match=structural.HEAD))
-                    labels[structural.HEAD-1].append(HierarchicalBracketDependencyParser.Bracket('\\', structural=True, p=0, match=structural.DEP))
+                    labels[structural.DEP-1].append(HierarchicalDependencyParser.Bracket('<', structural=True, p=0, match=structural.HEAD))
+                    labels[structural.HEAD-1].append(HierarchicalDependencyParser.Bracket('\\', structural=True, p=0, match=structural.DEP))
                 else:
                     for bracket in middle:
                         if bracket.is_right() and bracket.structural:
                             bracket.add_cross()
-                    labels[structural.DEP-1].append(HierarchicalBracketDependencyParser.Bracket('>', structural=True, p=0, match=structural.HEAD))
+                    labels[structural.DEP-1].append(HierarchicalDependencyParser.Bracket('>', structural=True, p=0, match=structural.HEAD))
                     if structural.HEAD != 0:
-                        labels[structural.HEAD-1].append(HierarchicalBracketDependencyParser.Bracket('/', structural=True, p=0, match=structural.DEP))
+                        labels[structural.HEAD-1].append(HierarchicalDependencyParser.Bracket('/', structural=True, p=0, match=structural.DEP))
                     
                 for bracket in middle:
                     if (not bracket.structural) and bracket.match not in structural.range:
@@ -140,23 +140,23 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
                 for arc in auxiliar:
                     middle = [bracket for label in labels[arc.left:arc.right-1] for bracket in label]
                     if arc.HEAD == structural.left:
-                        labels[arc.DEP-1].append(HierarchicalBracketDependencyParser.Bracket('>', structural=False, p=0, match=arc.HEAD))
+                        labels[arc.DEP-1].append(HierarchicalDependencyParser.Bracket('>', structural=False, p=0, match=arc.HEAD))
                     elif arc.HEAD == structural.right:
                         crosses = sum(bracket.is_closing() and bracket.structural for bracket in middle)
-                        labels[arc.DEP-1].append(HierarchicalBracketDependencyParser.Bracket('<', structural=False, p=crosses, match=arc.HEAD))
+                        labels[arc.DEP-1].append(HierarchicalDependencyParser.Bracket('<', structural=False, p=crosses, match=arc.HEAD))
                     elif arc.DEP == structural.left:
-                        labels[arc.HEAD-1].append(HierarchicalBracketDependencyParser.Bracket('\\', structural=False, p=0, match=arc.DEP))
+                        labels[arc.HEAD-1].append(HierarchicalDependencyParser.Bracket('\\', structural=False, p=0, match=arc.DEP))
                     elif arc.DEP == structural.right:
                         crosses = sum(bracket.is_closing() and bracket.structural for bracket in middle)
-                        labels[arc.HEAD-1].append(HierarchicalBracketDependencyParser.Bracket('/', structural=False, p=crosses, match=arc.DEP))
+                        labels[arc.HEAD-1].append(HierarchicalDependencyParser.Bracket('/', structural=False, p=crosses, match=arc.DEP))
             return [''.join(map(repr, sorted(label))) for label in labels] 
         
         def decode(self, labels: list[str], rels: list[str]) -> tuple[list[Arc], bool]:
-            stack = [(0, HierarchicalBracketDependencyParser.Bracket('/', structural=True, p=0, match=None))]
+            stack = [(0, HierarchicalDependencyParser.Bracket('/', structural=True, p=0, match=None))]
             adjacent = torch.zeros(len(labels)+1, len(labels)+1, dtype=torch.bool)
             well_formed = True
             for i, label in enumerate(labels):
-                brackets = HierarchicalBracketDependencyParser.Bracket.from_string(label)
+                brackets = HierarchicalDependencyParser.Bracket.from_string(label)
                 for bracket in brackets:
                     added = False
                     if bracket.is_opening():
@@ -222,15 +222,8 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
             return rec 
 
         
-    def __init__(
-        self,
-        input_tkzs: list[InputTokenizer],
-        target_tkzs: list[TargetTokenizer],
-        model_confs: list[Config],
-        variant: str, 
-        device: int
-    ) -> HierarchicalBracketDependencyParser:
-        super(BracketDependencyParser, self).__init__(input_tkzs, target_tkzs, model_confs, device)
+    def __init__(self, variant: str, **kwargs):
+        super(BracketDependencyParser, self).__init__(**kwargs)
         self.variant = variant
         self.lab = self.Labeler(variant)
     
@@ -258,11 +251,11 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
         variant: str = 'proj',
         device: int = 0,
         **_
-    ) -> HierarchicalBracketDependencyParser:
+    ) -> HierarchicalDependencyParser:
         if isinstance(data, str):
             data = CoNLL.from_file(data)
         
-        if 'pretrained' in word_conf:
+        if hasattr(word_conf, 'pretrained'):
             input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
             in_confs = [word_conf | input_tkzs[-1].conf, None, None]
         else:
@@ -290,4 +283,10 @@ class HierarchicalBracketDependencyParser(BracketDependencyParser):
         brackets, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
         bracket_tkz.train(brackets)
         rel_tkz.train(rels)
-        return cls(input_tkzs, [bracket_tkz, rel_tkz], [enc_conf, *in_confs, bracket_tkz.conf, rel_tkz.conf], variant, device)
+        return cls(
+            input_tkzs=input_tkzs, 
+            target_tkzs=[bracket_tkz, rel_tkz], 
+            model_confs=[enc_conf, *in_confs, bracket_tkz.conf, rel_tkz.conf], 
+            variant=variant,
+            device=device
+        )

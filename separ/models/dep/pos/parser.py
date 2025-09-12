@@ -1,7 +1,7 @@
 from __future__ import annotations 
 import torch 
 
-from separ.models.dep.parser import DependencySLParser
+from separ.models.dep.sl import DependencySLParser
 from separ.utils import Config, flatten, bar
 from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, Arc, forms_cycles
 
@@ -58,14 +58,8 @@ class PoSDependencyParser(DependencySLParser):
                 adjacent[dep, head] = True 
             return self.postprocess(adjacent, rels), well_formed and (n == adjacent.sum())
 
-    def __init__(
-        self,
-        input_tkzs: list[InputTokenizer],
-        target_tkzs: list[TargetTokenizer],
-        model_confs: list[Config],
-        device: int
-    ):
-        super().__init__(input_tkzs, target_tkzs, model_confs, device)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.lab = self.Labeler()
         
     @classmethod
@@ -110,6 +104,11 @@ class PoSDependencyParser(DependencySLParser):
         index_tkz.train(indexes)
         rel_tkz.train(rels)
         tag_tkz.train(tags)
-        return cls(input_tkzs, [index_tkz, rel_tkz, tag_tkz], [enc_conf, *in_confs, index_tkz.conf, rel_tkz.conf, tag_tkz.conf], device)
+        return cls(
+            input_tkzs=input_tkzs,
+            target_tkzs=[index_tkz, rel_tkz, tag_tkz],
+            model_confs=[enc_conf, *in_confs, index_tkz.conf, rel_tkz.conf, tag_tkz.conf], 
+            device=device
+        )
         
             

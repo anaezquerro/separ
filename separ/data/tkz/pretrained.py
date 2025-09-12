@@ -80,6 +80,7 @@ class PretrainedTokenizer(InputTokenizer):
         if self.eos or eos:
             tokens.append(self.eos_token)
         indices = self.tkz(tokens, add_special_tokens=False, max_length=self.fix_len, truncation=True).input_ids
+        indices = [idx if len(idx) > 0 else [self.bos_index] for idx in indices]
         lens = torch.tensor(list(map(len, indices)))
         return torch.tensor(flatten(indices)), lens
     

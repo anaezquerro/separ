@@ -21,71 +21,71 @@ This document provides examples training, evaluating and predicting with depende
 
 ```shell 
 python3 run.py dep-idx -c configs/xlnet.ini -d 0\
-    train --train treebanks/english-ewt/train.conllu \
-    --dev treebanks/english-ewt/dev.conllu \
-    --test treebanks/english-ewt/test.conllu \
-    --output-folder results/dep-abs-xlnet
+    train --train $DATA_FOLDER/english-ewt/train.conllu \
+    --dev $DATA_FOLDER/english-ewt/dev.conllu \
+    --test $DATA_FOLDER/english-ewt/test.conllu \
+    --output-folder $RESULTS_FOLDER/dep-abs-xlnet
 ```
 
 Or for multi-GPU training:
 ```shell 
 CUDA_VISIBLE_DEVICES="0,2,3" torchrun --nproc_per_node=3 run.py dep-idx -c configs/xlnet.ini \
-    train --train treebanks/english-ewt/train.conllu \
-    --dev treebanks/english-ewt/dev.conllu \
-    --test treebanks/english-ewt/test.conllu \
-    --output-folder results/dep-abs-xlnet
+    train --train $DATA_FOLDER/english-ewt/train.conllu \
+    --dev $DATA_FOLDER/english-ewt/dev.conllu \
+    --test $DATA_FOLDER/english-ewt/test.conllu \
+    --output-folder $RESULTS_FOLDER/dep-abs-xlnet
 ```
 
 
 - PoS-based relative indexing ([Strzyz et al., 2019](https://aclanthology.org/N19-1077/)) with BiLSTMs as encoder.
 ```shell 
 python3 run.py dep-pos -c configs/bilstm.ini -d 0 \
-    train --train treebanks/english-ewt/train.conllu \
-    --dev treebanks/english-ewt/dev.conllu \
-    --test treebanks/english-ewt/test.conllu \
-    --output-folder results/dep-pos-bilstm 
+    train --train $DATA_FOLDER/english-ewt/train.conllu \
+    --dev $DATA_FOLDER/english-ewt/dev.conllu \
+    --test $DATA_FOLDER/english-ewt/test.conllu \
+    --output-folder $RESULTS_FOLDER/dep-pos-bilstm 
 ```
 
 
 - Bracketing encoding ([Strzyz et al., 2020](https://aclanthology.org/2020.coling-main.223/)) with $k=2$ with XLM ([Conneau et al., 2019](https://aclanthology.org/2020.acl-main.747/)) as encoder:
 ```shell 
 python3 run.py dep-bracket -k 2 -c configs/xlm.ini \
-    train --train treebanks/english-ewt/train.conllu \
-    --dev treebanks/english-ewt/dev.conllu \
-    --test treebanks/english-ewt/test.conllu \
-    --output-folder results/dep-bracket-xlm
+    train --train $DATA_FOLDER/english-ewt/train.conllu \
+    --dev $DATA_FOLDER/english-ewt/dev.conllu \
+    --test $DATA_FOLDER/english-ewt/test.conllu \
+    --output-folder $RESULTS_FOLDER/dep-bracket-xlm
 ```
 
 - Arc-Eager transition-based system ([Nivre and Fernández-González, 2002](https://aclanthology.org/J14-2002/)) where each state is represented with 1 position of the stack and 2 positions of the buffer. Use XLM ([Conneau et al., 2019](https://aclanthology.org/2020.acl-main.747/)) as encoder:
 ```shell 
 python3 run.py dep-eager --stack 1 --buffer 2 -c configs/xlm.ini \
-    train --train treebanks/english-ewt/train.conllu \
-    --dev treebanks/english-ewt/dev.conllu \
-    --test treebanks/english-ewt/test.conllu \
-    --output-folder results/dep-eager-xlm
+    train --train $DATA_FOLDER/english-ewt/train.conllu \
+    --dev $DATA_FOLDER/english-ewt/dev.conllu \
+    --test $DATA_FOLDER/english-ewt/test.conllu \
+    --output-folder $RESULTS_FOLDER/dep-eager-xlm
 ```
 
 - Hexa-Tagging ([Amini et al., 2023](https://aclanthology.org/2023.acl-short.124/)) with XLNet as encoder and the *head* pseudo-projective transformation (modes available are `head`, `head+path`, `path`) from [Nivre and Nilsson (2005)](https://aclanthology.org/P05-1013/):
 ```shell 
 python3 run.py dep-hexa -c configs/xlnet.ini --proj head \
-    --train treebanks/english-ewt/train.conllu \
-    --dev treebanks/english-ewt/dev.conllu \
-    --test treebanks/english-ewt/test.conllu \
-    --output-folder -p results/dep-hexa-xlnet
+    --train $DATA_FOLDER/english-ewt/train.conllu \
+    --dev $DATA_FOLDER/english-ewt/dev.conllu \
+    --test $DATA_FOLDER/english-ewt/test.conllu \
+    --output-folder -p $RESULTS_FOLDER/dep-hexa-xlnet
 ```
 
 
 
 ## Evaluation 
-Evaluate now the trained parser at `results/dep-bracket-xlm/parser.pt` with the same test file:
+Evaluate now the trained parser at `$RESULTS_FOLDER/dep-bracket-xlm/parser.pt` with the same test file:
 ```shell 
-python3 run.py dep-bracket --load results/dep-bracket-xlm/parser.pt \
-    eval treebanks/english-ewt/test.conllu --batch-size 50
+python3 run.py dep-bracket --load $RESULTS_FOLDER/dep-bracket-xlm/parser.pt \
+    eval $DATA_FOLDER/english-ewt/test.conllu --batch-size 50
 ```
 
 ## Prediction 
-Predict with the trained parser at `results/dep-hexa-xlnet`:
+Predict with the trained parser at `$RESULTS_FOLDER/dep-hexa-xlnet`:
 ```shell 
-python3 run.py dep-hexa --load results/dep-hexa-xlnet/parser.pt predict \
-     treebanks/english-ewt/test.conllu results/dep-hexa-xlnet/pred.conllu --batch-size 50
+python3 run.py dep-hexa --load $RESULTS_FOLDER/dep-hexa-xlnet/parser.pt predict \
+     $DATA_FOLDER/english-ewt/test.conllu $RESULTS_FOLDER/dep-hexa-xlnet/pred.conllu --batch-size 50
 ```

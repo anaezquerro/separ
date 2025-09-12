@@ -66,6 +66,9 @@ class Sentence:
     def __iter__(self) -> list[Sentence.Node]:
         return iter(self.nodes)
     
+    def __hash__(self) -> int:
+        return self.ID
+    
     def rebuild(self, field: str, values: list[str]) -> Sentence:
         """Rebuilds the sentence with a new field.
 

@@ -2,8 +2,9 @@ from torch import nn
 import torch 
 from torch.distributed.fsdp import fully_shard
 
-from separ.utils import Config, recursive_shard
+from separ.utils import Config, shard_modules
 from separ.modules import PretrainedEmbedding, LSTM, CharLSTM, FFN, Embedding
+from separ.modules.lstm import xLSTM, BixLSTM
 
 class Model(nn.Module):
     """Shared implementation of the encoder module of a neural model.""" 
@@ -46,7 +47,12 @@ class Model(nn.Module):
                 self.dim += char_conf.embed_size
             
             self.hidden_size = enc_conf.hidden_size or self.dim
-            self.encoder = LSTM(self.dim, **enc_conf) 
+            if not hasattr(enc_conf, 'bidirectional'):
+                enc_conf.bidirectional = False
+            if 'xlstm' in enc_conf:
+                self.encoder = (BixLSTM if enc_conf.bidirectional else xLSTM)(self.dim, **enc_conf)
+            else:
+                self.encoder = LSTM(self.dim, **enc_conf) 
                 
         if 'delay' not in enc_conf:
             enc_conf.delay = 0
@@ -86,5 +92,5 @@ class Model(nn.Module):
             return embed 
 
     def shard(self):
-        recursive_shard(self)
+        shard_modules(self)
         fully_shard(self)

@@ -64,25 +64,24 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
                 else:
                     return PTB.Tree(cons[0], deps=[leaf]).recover_unary(), True
             
-            for tetra, fence, con in zip(['>'] + tetras, ['<'] + fences, cons):
+            for tetra, fence, con in zip(['>'] + tetras, ['>'] + fences, cons):
+                well_formed &= (tetra == '<' and len(stack) >= 1) or (tetra == '>')
                 if (tetra == '>' or len(stack) < 1) and (sum(s.label == self.ROOT for s in stack) < len(words)):
                     stack.append(PTB.Tree(self.ROOT, deps=[PTB.Tree.from_leaf(leaves.pop(0), words.pop(0))]))
-                    well_formed &= (tetra == '>')
                 else:
                     stack[-1].deps.append(PTB.Tree.from_leaf(leaves.pop(0), words.pop(0)))
                     stack.pop(-1)
-                    well_formed &= (tetra == '<')
                     
+                well_formed &= (fence == '<' and len(stack) >= 2) or (fence == '>')
                 if (fence == '>' or len(stack) < 2) and (sum(s.label == self.ROOT for s in stack) < len(words) + 1):
                     stack[-1].deps = [PTB.Tree(con, deps=stack[-1].deps)]
                     stack.append(stack[-1].deps[0])
-                    well_formed &= (fence == '>')
                 else:
                     last = stack.pop(-1)
                     last.label = con 
                     stack[-1].deps.append(last)
                     stack[-1] = last 
-                    well_formed &= (fence == '<')
+                    
             stack[-1].deps.append(PTB.Tree.from_leaf(leaves.pop(0), words.pop(0)))
             return stack[0].deps[0].debinarize(), well_formed
         
@@ -90,14 +89,8 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
             rec, well_formed = self.decode(*self.encode(tree), tree.FORM)
             return rec == tree and well_formed
         
-    def __init__(
-        self,
-        input_tkzs: list[InputTokenizer], 
-        target_tkzs: list[TargetTokenizer],
-        model_confs: list[Config],
-        device: int
-    ):
-        super().__init__(input_tkzs, target_tkzs, model_confs, device)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.lab = self.Labeler()
         
     @classmethod 
@@ -138,6 +131,7 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
         enc_conf: Config,
         word_conf: Config,
         char_conf: Config | None = None,
+        evalb: tuple[str, str, str] | None = None,
         device: int = 0,
         **_
     ) -> TetraTaggingConstituencyParser:
@@ -173,9 +167,13 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
         con_tkz.train(cons)
         leaf_tkz.train(leaves)
         
-        return cls(input_tkzs, [tetra_tkz, fence_tkz, con_tkz, leaf_tkz], 
-                   [enc_conf, *in_confs, tetra_tkz.conf, fence_tkz.conf, con_tkz.conf, leaf_tkz.conf], 
-                   device)
+        return cls(
+            input_tkzs=input_tkzs, 
+            target_tkzs=[tetra_tkz, fence_tkz, con_tkz, leaf_tkz], 
+            model_confs=[enc_conf, *in_confs, tetra_tkz.conf, fence_tkz.conf, con_tkz.conf, leaf_tkz.conf], 
+            evalb=evalb,
+            device=device
+        )
             
         
             

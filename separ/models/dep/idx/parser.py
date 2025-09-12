@@ -1,17 +1,17 @@
 from __future__ import annotations 
 from argparse import ArgumentParser
-import torch, os
+import torch
 
 
 from separ.utils import Config, flatten, bar
 from separ.data import CoNLL, InputTokenizer, PretrainedTokenizer, CharacterTokenizer, TargetTokenizer , Arc
-from separ.models.dep.parser import DependencySLParser
+from separ.models.dep.sl import DependencySLParser
 
 
 class IndexDependencyParser(DependencySLParser):
     """Index Dependency Parser from [Strzyz et al., 2019](https://aclanthology.org/N19-1077/)"""
     NAME = 'dep-idx'
-    PARAMS = ['rel']
+    PARAMS = DependencySLParser.PARAMS | {'rel'}
     
     class Labeler(DependencySLParser.Labeler):
 
@@ -41,15 +41,8 @@ class IndexDependencyParser(DependencySLParser):
                     adjacent[dep, head] = True 
             return self.postprocess(adjacent, rels), well_formed and (n == adjacent.sum())
         
-    def __init__(
-        self,
-        input_tkzs: list[InputTokenizer],
-        target_tkzs: list[TargetTokenizer],
-        model_confs: list[Config],
-        rel: bool,
-        device: int
-    ):
-        super().__init__(input_tkzs, target_tkzs, model_confs, device)
+    def __init__(self, rel: bool, **kwargs):
+        super().__init__(**kwargs)
         self.rel = rel
         self.lab = self.Labeler(rel)
             
@@ -81,7 +74,7 @@ class IndexDependencyParser(DependencySLParser):
         if isinstance(data, str):
             data = CoNLL.from_file(data)
         
-        if 'pretrained' in word_conf:
+        if hasattr(word_conf, 'pretrained'):
             input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
             in_confs = [word_conf | input_tkzs[-1].conf, None, None]
         else:
@@ -109,7 +102,13 @@ class IndexDependencyParser(DependencySLParser):
         indexes, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
         index_tkz.train(indexes)
         rel_tkz.train(rels)
-        return cls(input_tkzs, [index_tkz, rel_tkz], [enc_conf, *in_confs, index_tkz.conf, rel_tkz.conf], rel, device)
+        return cls(
+            input_tkzs=input_tkzs,
+            target_tkzs=[index_tkz, rel_tkz], 
+            model_confs=[enc_conf, *in_confs, index_tkz.conf, rel_tkz.conf], 
+            rel=rel,
+            device=device
+        )
         
         
 

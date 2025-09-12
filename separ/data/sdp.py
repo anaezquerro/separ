@@ -116,3 +116,6 @@ class SDP(Dataset):
     def n_arcs(self) -> int:
         """Number of arcs of the dataset."""
         return sum(len(graph.arcs) for graph in self)
+    
+    def format(self) -> str:
+        return '#SDP 2015\n' + super().format()

@@ -1,20 +1,18 @@
 from __future__ import annotations
-from typing import Iterable 
 from argparse import ArgumentParser
 import torch
 
-from separ.parser import Parser 
+from separ.models.dep.parser import DependencyParser
 from separ.models.dep.eager.model import ArcEagerDependencyModel
 from separ.utils import DependencyMetric, get_mask, acc, Config, bar, flatten, ControlMetric
 from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer
 from separ.data.struct import Arc, adjacent_from_arcs, candidates_no_cycles
 
-class ArcEagerDependencyParser(Parser):
+class ArcEagerDependencyParser(DependencyParser):
     """Transition-based Arc-Eager Dependency Parser from [Nivre and Fernández-González, 2012](https://aclanthology.org/J14-2002.pdf)."""
     NAME = 'dep-eager'
     MODEL = ArcEagerDependencyModel
-    PARAMS = ['stack', 'buffer', 'proj']
-    DATASET = [CoNLL]
+    PARAMS = DependencyParser.PARAMS | {'stack', 'buffer', 'proj'}
     
     class State:
         def __init__(self, stack: list[int], buffer: list[int]):
@@ -182,27 +180,14 @@ class ArcEagerDependencyParser(Parser):
             return arcs 
         
                 
-    def __init__(
-        self,
-        input_tkzs: list[InputTokenizer],
-        target_tkzs: list[TargetTokenizer],
-        model_confs: list[Config],
-        stack: int,
-        buffer: int,
-        proj: str | None,
-        device: int
-    ):
-        super().__init__(input_tkzs, target_tkzs, model_confs, device)
+    def __init__(self, stack: int, buffer: int, proj: str | None, **kwargs):
+        super().__init__(**kwargs)
         self.stack, self.buffer, self.proj = stack, buffer, proj 
         self.system = self.System(stack, buffer, proj)
         
-    @property 
-    def METRIC(self) -> DependencyMetric:
-        return DependencyMetric()
-        
     @classmethod 
     def add_arguments(cls, argparser: ArgumentParser):
-        argparser = Parser.add_arguments(argparser)
+        argparser = super().add_arguments(argparser)
         argparser.add_argument('--stack', type=int, default=1, help='Number of tokens from the stack used to represent a state')
         argparser.add_argument('--buffer', type=int, default=1, help='Number of tokens from the buffer used to represent a state')
         argparser.add_argument('--proj', default=None, type=str, choices=['head', 'head+path', 'path'], help='Pseudo-projective mode')
@@ -250,7 +235,7 @@ class ArcEagerDependencyParser(Parser):
         inputs: list[torch.Tensor], 
         _: list[torch.Tensor], 
         trees: list[CoNLL.Tree]
-    ) -> Iterable[CoNLL.Tree]:
+    ) -> list[CoNLL.Tree]:
         embed = model.encode(inputs[0], *inputs[1:])
         oracles = [self.Oracle(self.stack, self.buffer, self.proj).reset(len(tree)) for tree in trees]
         while not all(oracle.final for oracle in oracles):
@@ -304,7 +289,7 @@ class ArcEagerDependencyParser(Parser):
         if isinstance(data, str):
             data = CoNLL.from_file(data)
         
-        if 'pretrained' in word_conf:
+        if hasattr(word_conf, 'pretrained'):
             input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM', bos=True, eos=True)]
             in_confs = [word_conf | input_tkzs[-1].conf, None, None]
         else:
@@ -333,7 +318,15 @@ class ArcEagerDependencyParser(Parser):
         _, actions, rels = map(flatten, zip(*bar(map(system.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
         action_tkz.train(actions)
         rel_tkz.train(rels)
-        return cls(input_tkzs, [action_tkz, rel_tkz], [enc_conf, *in_confs, action_tkz.conf, rel_tkz.conf], stack, buffer, proj, device)
+        return cls(
+            input_tkzs=input_tkzs, 
+            target_tkzs=[action_tkz, rel_tkz],
+            model_confs=[enc_conf, *in_confs, action_tkz.conf, rel_tkz.conf], 
+            stack=stack,
+            buffer=buffer,
+            proj=proj,
+            device=device
+        )
         
             
         

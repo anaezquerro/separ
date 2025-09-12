@@ -5,6 +5,7 @@ import numpy as np
 from separ.utils.logger import bar
 from separ.data.conll import CoNLL 
 from separ.data.struct import Arc, Graph 
+from separ.data.sdp import SDP 
         
 class EnhancedCoNLL(CoNLL):
     """Representation of the [Enhanced CoNLL-U](https://universaldependencies.org/v2/conll-u.html) format for Graph Parsing."""
@@ -14,6 +15,9 @@ class EnhancedCoNLL(CoNLL):
         
         class Node(CoNLL.Tree.Node):
             ...
+            
+            def to_sdp(self) -> SDP.Graph.Node:
+                return SDP.Graph.Node(self.ID, self.FORM, self.LEMMA, self.UPOS, '-', '-', '_')
         
         def __init__(
             self, 
@@ -105,10 +109,20 @@ class EnhancedCoNLL(CoNLL):
                 else:
                     node.DEPS = '|'.join(sorted(deps, key=lambda x: x.split(':')))
             return EnhancedCoNLL.Graph(nodes, arcs, ID=self.ID, annotations=self.annotations)
+        
+        def to_sdp(self) -> SDP.Graph:
+            nodes = [node.to_sdp() for node in self.nodes]
+            graph = SDP.Graph(nodes, [], self.ID, [f'#{self.ID}'] + list(range(len(self))))
+            return graph.rebuild_from_arcs(self.arcs)
 
     @classmethod
     def from_file(cls, path: str) -> CoNLL:
         blocks = re.split('\n{2,}', open(path, 'r').read().strip())
         trees = list(bar(map(EnhancedCoNLL.Graph.from_raw, blocks, range(len(blocks))), total=len(blocks), leave=False, desc=path))
         return cls(trees, path)
+    
+    def to_sdp(self) -> SDP:
+        sens = [sen.to_sdp() for sen in self.sens]
+        return SDP(sens, None)
+        
     

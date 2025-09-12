@@ -4,12 +4,12 @@ import torch
 
 from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, Arc 
 from separ.utils import flatten, Config, bar 
-from separ.models.dep.parser import DependencySLParser
+from separ.models.dep.sl import DependencySLParser
 
 class Bit4DependencyParser(DependencySLParser):
     """4-bit Dependency Parser from [Gómez-Rodríguez et al., 2023](https://aclanthology.org/2023.emnlp-main.393/)."""
     NAME = 'dep-bit4'
-    PARAMS = ['proj']
+    PARAMS = DependencySLParser.PARAMS | {'proj'}
     
     class Labeler(DependencySLParser.Labeler):
         """4-bit encoding for projective dependency trees.
@@ -92,15 +92,8 @@ class Bit4DependencyParser(DependencySLParser):
                 rec = rec.deprojectivize(self.proj)
             return rec 
             
-    def __init__(
-        self,
-        input_tkzs: list[InputTokenizer],
-        target_tkzs: list[TargetTokenizer],
-        model_confs: list[Config],
-        proj: str | None,
-        device: int
-    ):
-        super().__init__(input_tkzs, target_tkzs, model_confs, device)
+    def __init__(self, proj: str | None, **kwargs):
+        super().__init__(**kwargs)
         self.lab = self.Labeler(proj)
         self.proj = proj 
         
@@ -138,7 +131,7 @@ class Bit4DependencyParser(DependencySLParser):
         if isinstance(data, str):
             data = CoNLL.from_file(data)
         
-        if 'pretrained' in word_conf:
+        if hasattr(word_conf, 'pretrained'):
             input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
             in_confs = [word_conf | input_tkzs[-1].conf, None, None]
         else:
@@ -167,4 +160,10 @@ class Bit4DependencyParser(DependencySLParser):
         bit_tkz.train(bits)
         rel_tkz.train(rels)
         
-        return cls(input_tkzs, [bit_tkz, rel_tkz], [enc_conf, *in_confs, bit_tkz.conf, rel_tkz.conf], proj, device)
+        return cls(
+            input_tkzs=input_tkzs, 
+            target_tkzs=[bit_tkz, rel_tkz],
+            model_confs=[enc_conf, *in_confs, bit_tkz.conf, rel_tkz.conf], 
+            proj=proj, 
+            device=device
+        )

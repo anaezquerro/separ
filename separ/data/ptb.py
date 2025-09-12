@@ -60,6 +60,9 @@ class PTB(Dataset):
             assert all(isinstance(dep, PTB.Tree) for dep in self.deps), self.deps
             self.build()
             
+        def __hash__(self) -> int:
+            return super().__hash__()
+            
         def build(self):
             """Builds the labeled and unlabeled span matrix.
             

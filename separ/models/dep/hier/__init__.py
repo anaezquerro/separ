@@ -1,1 +1,1 @@
-from .parser import HierarchicalBracketDependencyParser
+from .parser import HierarchicalDependencyParser

@@ -9,17 +9,18 @@ Hi :wave: This is a [Python](https://www.python.org/) implementation for sequenc
     - Bracketing encoding ($k$-planar) ([Strzyz et al., 2020](https://aclanthology.org/2020.coling-main.223/)).
     - $4$-bit projective  encoding ([Gómez-Rodríguez et al., 2023](https://aclanthology.org/2023.emnlp-main.393/)).
     - $7$-bit $2$-planar encoding ([Gómez-Rodríguez et al., 2023](https://aclanthology.org/2023.emnlp-main.393/)).
-    - Hierarchical bracketing encoding ([Ezquerro et al., 2025](https://arxiv.org/abs/2505.11693), **OFFICIAL**).
+    - Hierarchical bracketing encoding ([Ezquerro et al., 2025a](https://arxiv.org/abs/2505.11693), **OFFICIAL**).
     - Hexa-Tagging projective encoding ([Amini et al., 2023](https://aclanthology.org/2023.acl-short.124/)).
     - Arc-Eager transition-based system ([Nivre and Fernández-González, 2002](https://aclanthology.org/J14-2002/)).
     - Biaffine dependency parser ([Dozat & Manning, 2017](https://arxiv.org/abs/1611.01734)).
-- **Semantic Dependency Parsing**:
+- **Graph Parsing**:
     - Absolute and relative indexing ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972), **OFFICIAL**).
     - Bracketing encoding ($k$-planar) ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972), **OFFICIAL**).
+    - Hierarchical bracketing encoding ([Ezquerro et al., 2025b](https://arxiv.org/abs/2509.09388), **OFFICIAL**).
     - $4k$-bit encoding ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972), **OFFICIAL**).
     - $6k$-bit encoding ([Ezquerro et al., 2024](https://arxiv.org/abs/2410.17972), **OFFICIAL**).
     - Covington graph parser ([Covington, 2001](https://ai1.ai.uga.edu/mc/dparser/dgpacmnew.pdf)).
-    - Biaffine semantic parser ([Dozat & Manning, 2018](https://aclanthology.org/P18-2077/)).
+    - Biaffine graph parser ([Dozat & Manning, 2018](https://aclanthology.org/P18-2077/)).
 - **Constituency Parsing**:
     - Absolute and relative indexing ([Gómez-Rodríguez and Vilares, 2018](https://aclanthology.org/D18-1162/)).
     - Tetra-Tagging ([Kitaev and Klein, 2020](https://aclanthology.org/2020.acl-main.557/)).
@@ -28,7 +29,8 @@ Hi :wave: This is a [Python](https://www.python.org/) implementation for sequenc
 It is also the official repository of the following papers:
 
 - *Dependency Graph Parsing as Sequence Labeling* ([Ezquerro et al., 2024](https://aclanthology.org/2024.emnlp-main.659/)).
-- *Hierarchical Bracketing Encodings for Dependency Parsing as Tagging* ([Ezquerro et al., 2025](https://arxiv.org/abs/2505.11693)).
+- *Hierarchical Bracketing Encodings for Dependency Parsing as Tagging* ([Ezquerro et al., 2025a](https://arxiv.org/abs/2505.11693)).
+- *Hierarchical Bracketing Encodings Work for Dependency Graphs* ([Ezquerro et al., 2025b](https://arxiv.org/abs/2509.09388)).
 
 
 Please, feel free to [reach out](mailto:ana.ezquerro@udc.es) if you want to collaborate or include  additional parsers to [SePar](https://github.com/anaezquerro/separ)!
@@ -37,7 +39,7 @@ Please, feel free to [reach out](mailto:ana.ezquerro@udc.es) if you want to coll
 
 ## Installation 
 
-This code was tested in [Python >=3.8](https://www.python.org/downloads/), although we recommend using [Python >=3.12](https://www.python.org/downloads/release/python-3110/) in a GPU system with NVIDIA drivers (>=535) and CUDA (>=12.4) installed. Use the [requirements.txt](requirements.txt) to download the dependencies in an existing environment or the [environment.yaml](environment.yaml) to create an Anaconda environment.
+This code was tested in [Python >=3.12](https://www.python.org/downloads/release/python-3110/) in a GPU system with NVIDIA drivers (>=535) and CUDA (>=12.4) installed. Use the [requirements.txt](requirements.txt) to download the dependencies in an existing environment or the [environment.yaml](environment.yaml) to create an Anaconda environment.
 
 ```shell
 pip install -r requirements.txt
@@ -46,6 +48,13 @@ or
 ```shell 
 conda env create -n separ -f environment.yaml
 ```
+
+### Evaluation
+
+Our code allows running the official evaluation of constituency ([Sekine and Collins, 1997](https://nlp.cs.nyu.edu/evalb/)) and graph ([Oepen et al., 2015](https://github.com/semantic-dependency-parsing/toolkit)) parsers. Please, follow the instructions to download and install the [EVALB](https://nlp.cs.nyu.edu/evalb/) executable and [SDP toolkit](https://github.com/semantic-dependency-parsing/toolkit). For the constituency and graph parsers use the `--evalb` argument to compute the official evaluation.
+
+- For constituency parsers, the `--evalb` argument requires three paths: (i) the EVALB executable, (ii) the labeled parameter file and (iii) the unlabeled parameter file.
+- For graph parsers, the `--evalb` argument is the path to the `run.sh` file from the [SDP toolkit](https://github.com/semantic-dependency-parsing/toolkit).
 
 ## Usage 
 
@@ -65,12 +74,15 @@ You can train, evaluate and predict different parsers from terminal with the [ru
 | `dep-biaffine` | Biaffine dependency parser | [Dozat & Manning (2017)](https://arxiv.org/abs/1611.01734) | |
 | `con-idx` | Absolute and relative indexing  | [Gómez-Rodríguez and Vilares (2018)](https://aclanthology.org/D18-1162/) | `rel`$\in$`{true, false}` |  `false` | 
 | `con-tetra` | Tetra-Tagging | [Kitaev and Klein (2020)](https://aclanthology.org/2020.acl-main.557/) | | | 
-| `sdp-idx` | Absolute and relative indexing  | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `rel`$\in$`{true, false}` |  `false` |
-| `sdp-bracket` | Bracketing encoding ($k$-planar) | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | `2` | 
-| `sdp-bit4k` | $4k$-bit encoding | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | `3` |
-| `sdp-bit6k` | $6k$-bit encoding | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | `3` |
-| `sdp-cov`| Covington | [Covington (2001)](https://ai1.ai.uga.edu/mc/dparser/dgpacmnew.pdf) | | | 
-| `sdp-biaffine` | Biaffine graph parser | [Dozat & Manning (2018)](https://aclanthology.org/P18-2077/) | || 
+| `grp-idx` | Absolute and relative indexing  | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `rel`$\in$`{true, false}` |  `false` |
+| `grp-bracket` | Bracketing encoding ($k$-planar) | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | `2` | 
+| `grp-hier` | Hierarchical bracketing encoding | [Ezquerro et al., (2025)]() | |
+| `grp-bit4k` | $4k$-bit encoding | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | `3` |
+| `grp-bit6k` | $6k$-bit encoding | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | `3` |
+| `grp-cov`| Covington | [Covington (2001)](https://ai1.ai.uga.edu/mc/dparser/dgpacmnew.pdf) | | | 
+| `grp-biaffine` | Biaffine graph parser | [Dozat & Manning (2018)](https://aclanthology.org/P18-2077/) | || 
+
+
 
 
 ### Training
@@ -157,5 +169,5 @@ And optionally:
 
 ## Examples
 
-Check the [docs](docs/) folder for specific examples running different dependency ([docs/dep.md](docs/dep.md)), constituency ([docs/con.md](docs/con.md)) and semantic ([docs/sdp.md](docs/sdp.md)) parsers. The [docs/examples.ipynb](docs/examples.ipynb) notebook includes some examples of how to use the implemented classes and methods to parse and linearize input graphs/trees.
+Check the [docs](docs/) folder for specific examples running different dependency ([docs/dep.md](docs/dep.md)), constituency ([docs/con.md](docs/con.md)) and semantic ([docs/grp.md](docs/grp.md)) parsers. The [docs/examples.ipynb](docs/examples.ipynb) notebook includes some examples of how to use the implemented classes and methods to parse and linearize input graphs/trees.
 

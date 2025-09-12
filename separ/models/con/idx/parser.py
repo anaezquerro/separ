@@ -14,7 +14,7 @@ def extra_leaves(tag: str) -> str:
 
 class IndexConstituencyParser(ConstituencySLParser):
     NAME = 'con-idx'
-    PARAMS = ['rel']
+    PARAMS = ConstituencySLParser.PARAMS | {'rel'}
     
     class Labeler:
         def __init__(self, rel: bool, ROOT: str = 'S'):
@@ -72,15 +72,8 @@ class IndexConstituencyParser(ConstituencySLParser):
             rec = PTB.Tree.from_spans(tree.preterminals, spans).recover_unary()
             return rec == tree and well_formed
         
-    def __init__(
-        self,
-        input_tkzs: list[InputTokenizer],
-        target_tkzs: list[TargetTokenizer],
-        model_confs: list[Config],
-        rel: bool,
-        device: int
-    ):
-        super().__init__(input_tkzs, target_tkzs, model_confs, device)
+    def __init__(self, rel: bool, **kwargs):
+        super().__init__(**kwargs)
         self.rel = rel 
         self.lab = self.Labeler(rel)
         
@@ -105,6 +98,7 @@ class IndexConstituencyParser(ConstituencySLParser):
         char_conf: Config | None = None,
         rel: bool = False,
         device: int = 0,
+        evalb: tuple[str, str, str] | None = None,
         **_
     ) -> IndexConstituencyParser:
         if isinstance(data, str):
@@ -134,7 +128,14 @@ class IndexConstituencyParser(ConstituencySLParser):
         index_tkz.train(indexes)
         con_tkz.train(cons)
         leaf_tkz.train(leaves)
-        return cls(input_tkzs, [index_tkz, con_tkz, leaf_tkz], [enc_conf, *in_confs, index_tkz.conf, con_tkz.conf, leaf_tkz.conf], rel, device)
+        return cls(
+            input_tkzs=input_tkzs, 
+            target_tkzs=[index_tkz, con_tkz, leaf_tkz], 
+            model_confs=[enc_conf, *in_confs, index_tkz.conf, con_tkz.conf, leaf_tkz.conf], 
+            rel=rel, 
+            evalb=evalb,
+            device=device
+        )
             
         
             

@@ -13,6 +13,7 @@ class ControlMetric(Metric):
         for name, value in control.items():
             if not isinstance(value, torch.Tensor):
                 value = torch.tensor(value)
+            assert not value.isnan(), f'NaN value error'
             self.__setattr__(f'_{name.lower()}', value)
             self.ATTRIBUTES.append(f'_{name.lower()}')
             self.METRICS.append(name)
@@ -29,12 +30,18 @@ class ControlMetric(Metric):
         new.ATTRIBUTES += [a for a in other.ATTRIBUTES if a not in new.ATTRIBUTES]
         return new
     
+    def __or__(self, other: ControlMetric) -> ControlMetric:
+        assert other.n == self.n 
+        new = self + other 
+        new.n = other.n 
+        return new 
+    
     def __repr__(self):
         return f', '.join(f'{name}={getattr(self, name):.2f}' for name in self.METRICS)
     
     def __getattr__(self, name):
         if name in self.METRICS:
-            return div(object.__getattribute__(self, f'_{name.lower()}'), self.n)
+            return float(div(object.__getattribute__(self, f'_{name.lower()}'), self.n))
         else:
-            return object.__getattribute__(self, name)
+            return float(object.__getattribute__(self, name))
         

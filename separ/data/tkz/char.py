@@ -43,6 +43,10 @@ class CharacterTokenizer(InputTokenizer):
         Returns:
             torch.Tensor ~ [seq_len, max(word_lens)]
         """
+        if not hasattr(self, 'bos'):
+            self.bos = self.bos_token is not None 
+        if not hasattr(self, 'eos'):
+            self.eos = self.eos_token is not None
         if isinstance(tokens, Sentence):
             tokens = getattr(tokens, self.field)
         indices = list(map(self.enc, tokens))

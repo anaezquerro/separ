@@ -4,7 +4,7 @@ import pickle, torch, os
 import torch.distributed as dist
 
 from separ.utils.fn import mkftemp, folderpath 
-from separ.utils.shard import is_distributed
+from separ.utils.shard import is_distributed, sync
 class Metric:
     METRICS = [] 
     ATTRIBUTES = []
@@ -28,7 +28,7 @@ class Metric:
             self(*args, **kwargs)
     
     def __eq__(self, other: Metric) -> bool:
-        return isinstance(other, self.__class__) and all(getattr(self, attr) == getattr(other, attr) for attr in self.ATTRIBUTES)
+        return isinstance(other, self.__class__) and all(getattr(self, attr) == getattr( other, attr) for attr in self.ATTRIBUTES)
     
     def __add__(self, other: Metric) -> Metric:
         assert self.__class__.__name__ == self.__class__.__name__,\
@@ -67,18 +67,13 @@ class Metric:
     
     @classmethod
     def load(cls, path: str) -> Metric:
-        try:
-            m = torch.load(path, map_location=torch.device('cpu'), weights_only=False)
-        except RuntimeError:
-            with open(path, 'rb') as reader:
-                m = pickle.load(reader)
-            torch.save(m, path)
+        m = torch.load(path, map_location=torch.device('cpu'), weights_only=False)
         return m
     
-    def sync(self) -> Metric:
+    def sync(self, rank: int | None = None) -> Metric:
         if is_distributed():
             for name in self.ATTRIBUTES:
-                dist.all_reduce(getattr(self, name), op=dist.ReduceOp.SUM)
+                sync(getattr(self, name), rank)
         return self
             
     def to(self, device: int) -> Metric:

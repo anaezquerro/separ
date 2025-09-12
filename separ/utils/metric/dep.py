@@ -34,18 +34,18 @@ class DependencyMetric(Metric):
         
     @property
     def UAS(self) -> float:
-        return div(self.uas, self.n)
+        return float(div(self.uas, self.n))
         
     @property
     def LAS(self) -> float:
-        return div(self.las, self.n)
+        return float(div(self.las, self.n))
     
     @property
     def UCM(self) -> float:
-        return div(self.ucm, self.n)
+        return float(div(self.ucm, self.n))
     
     @property
     def LCM(self) -> float:
-        return div(self.lcm, self.n)
+        return float(div(self.lcm, self.n))
         
 

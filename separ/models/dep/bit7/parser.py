@@ -4,13 +4,13 @@ import torch
 from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, Arc
 from separ.utils import flatten, Config, bar 
 from separ.models.dep.bit4.parser import Bit4DependencyParser
-from separ.models.dep.parser import DependencySLParser
+from separ.models.dep.sl import DependencySLParser
 
 
 class Bit7DependencyParser(Bit4DependencyParser):
     """7-bit Dependency Parser from [Gómez-Rodríguez et al., 2023](https://aclanthology.org/2023.emnlp-main.393/)."""
     NAME = 'dep-bit7'
-    PARAMS = []
+    PARAMS = DependencySLParser.PARAMS
 
     class Labeler(DependencySLParser.Labeler):
         """7-bit encoding for 2-planar dependency trees.
@@ -167,7 +167,7 @@ class Bit7DependencyParser(Bit4DependencyParser):
         if isinstance(data, str):
             data = CoNLL.from_file(data)
             
-        if 'pretrained' in word_conf:
+        if hasattr(word_conf, 'pretrained'):
             input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
             in_confs = [word_conf | input_tkzs[-1].conf, None, None]
         else:
@@ -195,4 +195,9 @@ class Bit7DependencyParser(Bit4DependencyParser):
         bits, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
         bit_tkz.train(bits)
         rel_tkz.train(rels)
-        return cls(input_tkzs, [bit_tkz, rel_tkz], [enc_conf, *in_confs, bit_tkz.conf, rel_tkz.conf], device)
+        return cls(
+            input_tkzs=input_tkzs, 
+            target_tkzs=[bit_tkz, rel_tkz], 
+            model_confs=[enc_conf, *in_confs, bit_tkz.conf, rel_tkz.conf], 
+            device=device
+        )

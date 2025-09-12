@@ -1,6 +1,6 @@
 from __future__ import annotations
-from torch.optim import AdamW, Optimizer
-import torch, os, logging, time, wandb, shutil
+from torch.optim import AdamW
+import torch, os, logging, time, wandb, shutil, pickle 
 from argparse import ArgumentParser
 from torch.utils.data import DataLoader, Sampler
 from torch import nn 
@@ -8,7 +8,7 @@ from torch.distributed.tensor import distribute_tensor
 import torch.distributed as dist 
 
 from separ.model import Model 
-from separ.utils import Config, to, ControlMetric, Metric, logger, bar, filename, save , is_distributed, WORLD_SIZE, flatten, is_main
+from separ.utils import Config, to, ControlMetric, Metric, logger, bar, filename, save , is_distributed, is_main, all_gather_objects, WORLD_SIZE
 from separ.data import InputTokenizer, TargetTokenizer, Dataset, Sentence
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'true'
@@ -18,7 +18,7 @@ class Parser:
     OPTIMIZER = AdamW
     MODEL = Model
     METRIC = Metric
-    PARAMS: list[str] = []
+    PARAMS: set[str] = set()
     DATASET: list[type]
     
     def __init__(
@@ -53,7 +53,7 @@ class Parser:
     
     def barrier(self):
         if is_distributed():
-            dist.barrier(device_ids=[self.device])
+            dist.barrier()
 
     @classmethod
     def load_data(cls, path: str) -> Dataset:
@@ -89,6 +89,10 @@ class Parser:
     
     def loader(self, data: Dataset, batch_size: int, shuffle: bool) -> tuple[DataLoader, Sampler]:
         return data.loader(batch_size, shuffle=shuffle, collate=self.collate)
+    
+    @property
+    def official(self) -> bool:
+        return False
     
     @classmethod
     def add_arguments(cls, argparser: ArgumentParser):
@@ -186,15 +190,15 @@ class Parser:
             log.info(f'train: {train}')
             log.info(f'dev: {dev}')
             log.info(f'test: ' + ', '.join(map(repr, test)))
-            run = wandb.init(project='trasepar', name=run_name, config={'server': os.uname()[1], 'parser': repr(self), 'data': train.path})
+            run = wandb.init(project='separ', name=run_name, config={'server': os.uname()[1], 'parser': repr(self), 'data': train.path})
         else:
             log = None
-        optimizer = self.OPTIMIZER(self.model.parameters(), lr=lr)
+        self.optimizer = self.OPTIMIZER(self.model.parameters(), lr=lr)
         loader, sampler = self.loader(train, batch_size=batch_size, shuffle=True)
         best_metric, best_loss = self.METRIC, torch.inf
         history = []
         for epoch in range(self.epochs, epochs+1):
-            debug = self.epoch(epoch, optimizer, loader, sampler, epochs, log=log, **kwargs)
+            debug = self.epoch(epoch, loader, sampler, epochs, log=log, **kwargs)
 
             # validation step 
             dev_metric = self.evaluate(data=dev, batch_size=batch_size, output_folder=output_folder, log=log)
@@ -251,7 +255,6 @@ class Parser:
     def epoch(
         self, 
         epoch: int,
-        optimizer: Optimizer,
         loader: DataLoader,
         sampler: Sampler,
         epochs: int,
@@ -268,24 +271,25 @@ class Parser:
         debug = ControlMetric()
         with bar(desc=f'train (epoch-{epoch})', total=sampler.num_sens, leave=False, disable=not is_main()) as pbar:
             for i, (inputs, masks, targets, sens) in enumerate(loader):
+                # print(f'Rank {self.device}: [train-{i+1}/{len(sampler)}]:', [len(sen) for sen in sens], sum(len(sen) for sen in sens))
                 loss, _debug = self.train_step(*to(self.device, inputs, masks, targets))
-                if loss.isnan():
-                    continue 
-                (loss/steps).backward()
-                if (i+1) % steps == 0 or (i+1) == len(loader):
-                    optimizer.step()
-                    nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=max_norm, norm_type=2)
-                    optimizer.zero_grad()
+                self.optimize(loss, steps, max_norm, step=((i+1) % steps == 0) or (i+1) == len(sampler))
                 debug += _debug
                 pbar.update(len(sens))
                 pbar.set_postfix_str(repr(debug))
-                self.barrier()
+        # print(f'Finished {self.device} epoch {debug}')
         if log:
             elapsed = time.time()-start
             log.info(str(pbar))
             log.info(f'Epoch {epoch}/{epochs}: loss={debug.loss:.3f}, elapsed={elapsed:.2f} [{sampler.num_tokens/elapsed:.2f} tokens/s {sampler.num_sens/elapsed:.2f} sens/s]')
         return debug.to(self.device).sync()
     
+    def optimize(self, loss: torch.Tensor, steps: int, max_norm: float, step: bool):
+        (loss/steps).backward()
+        if step:
+            nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=max_norm, norm_type=2)
+            self.optimizer.step()
+            self.optimizer.zero_grad()
             
     def evaluate(
         self,
@@ -300,7 +304,7 @@ class Parser:
         Args:
             data (str | Dataset): Input dataset.
             conf (Config): Evaluation configuration (device, batch-size, output folder).
-            output_folder (Optional[str]): Path to store the evaluation metric.
+            output_folder (str | None): Path to store the evaluation metric.
             batch_size (int): Inference batch size.
             log (logging.Logger | None): Logger.
 
@@ -316,21 +320,31 @@ class Parser:
         data = self.transform_data(data)
         self.model.eval()
         start = time.time()
-        loader, sampler = self.loader(data, batch_size, shuffle=True)
-        control, metric = ControlMetric(), self.METRIC
+        loader, sampler = self.loader(data, batch_size, shuffle=False)
+        metrics, preds = [], []
         with bar(desc=f'eval', total=sampler.num_sens, leave=False, disable=not is_main()) as pbar:
             for *batch, sens in loader:
-                _control, _metric = self.eval_step(*to(self.device, *batch), sens)
-                control += _control 
-                metric += _metric 
+                *_metrics, _preds = self.eval_step(*to(self.device, *batch), sens)
+                metrics.append(_metrics)
+                preds += _preds
                 pbar.update(len(sens))
-                pbar.set_postfix_str(repr(control))
-                self.barrier()
-        control.elapsed = time.time()-start
-        metric.control = control.to(self.device).sync()
-        metric.to(self.device).sync()
+                pbar.set_postfix_str(repr(_metrics[0]))
+        elapsed = time.time()-start
+        *control, metric = map(sum, zip(*metrics))
+        self.barrier()
+        if self.official: # compute official metric 
+            if is_distributed():
+                preds = all_gather_objects(preds)
+            pred = data.__class__(set(preds), None).sort()
+            if is_main():
+                metric = self.METRIC(pred, data)
+            metric.to(self.device).sync(0)
+        else:
+            metric.to(self.device).sync()
+        metric.control = [c.to(self.device).sync() for c in control]
+        metric.elapsed = elapsed
         if log:
-            log.info(f'{data.name}: {metric} [{control} {data.n_tokens/control.elapsed:.2f} tokens/s {len(data)/control.elapsed:.2f} sens/s]')
+            log.info(f'{data.name}: {metric} [{data.n_tokens/metric.elapsed:.2f} tokens/s {len(data)/metric.elapsed:.2f} sens/s]')
             if output_folder and is_main():
                 metric.save(f'{output_folder}/{data.name}.mt')
         return metric
@@ -347,8 +361,7 @@ class Parser:
 
         Args:
             data (str | Dataset): Input dataset.
-            conf (Config): Evaluation configuration (device, batch-size, output folder).
-            output_folder (Optional[str]): Path to store the evaluation metric.
+            output_folder (str | None): Path to store the evaluation metric.
             batch_size (int): Inference batch size.
             log (logging.Logger | None): Logger.
 
@@ -362,7 +375,7 @@ class Parser:
             log.info(self.model)
             log.info(f'Prediction from {data}')
         data = self.transform_data(data)
-        loader, sampler = self.loader(data, batch_size=batch_size, shuffle=True)
+        loader, sampler = self.loader(data, batch_size=batch_size, shuffle=False)
         start = time.time()
         self.model.eval()
         preds = []
@@ -372,17 +385,95 @@ class Parser:
                 pbar.update(len(sens))
                 self.barrier()
         if is_distributed():
-            pred = [None for _ in range(WORLD_SIZE)]
-            dist.all_gather_object(pred, preds)
-            pred = data.__class__(flatten(pred), None).sort()
-        else:
-            pred = data.__class__(preds, None).sort()
+            preds = all_gather_objects(preds)
+        pred = data.__class__(set(preds), None).sort()
         if log:
             elapsed = time.time()-start
             log.info(f'{data.name}: {data.n_tokens/elapsed:.2f} tokens/s {len(data)/elapsed:.2f} sens/s]')
             if output_folder and is_main():
                 pred.save(f'{output_folder}/{filename(data.path)}')
         return pred
+    
+    def debug(
+        self,
+        data: str | Dataset,
+        batch_size: int = 100,
+        log: logging.Logger | None = None,
+        **_
+    ) -> Metric:
+        self.barrier()
+        if log is None and is_main():
+            log = logger('debug', path=None, level=logging.DEBUG)
+            log.info(self)
+            log.info(self.model)
+            log.info(f'Evaluation from {data}')
+        data = self.transform_data(data)
+        self.model.eval()
+        start = time.time()
+        loader, sampler = self.loader(data, batch_size, shuffle=False)
+        metrics, preds = [], []
+        with bar(desc=f'debug', total=sampler.num_sens, leave=False, disable=not is_main()) as pbar:
+            for _, *batch, sens in loader:
+                *_metrics, _preds = self.debug_step(*to(self.device, *batch), sens)
+                metrics.append(_metrics)
+                preds += _preds
+                pbar.update(len(sens))
+                pbar.set_postfix_str(repr(_metrics[0]))
+        elapsed = time.time()-start
+        *control, metric = map(sum, zip(*metrics))
+        self.barrier()
+        if self.official: # compute official metric 
+            if is_distributed():
+                preds = all_gather_objects(preds)
+            pred = data.__class__(set(preds), None).sort()
+            if is_main():
+                metric = self.METRIC(pred, data)
+            metric.to(self.device).sync(0)
+        else:
+            metric.to(self.device).sync()
+        metric.control = [c.to(self.device).sync() for c in control]
+        metric.elapsed = elapsed
+        if log:
+            log.info(f'{data.name}: {metric} [{data.n_tokens/metric.elapsed:.2f} tokens/s {len(data)/metric.elapsed:.2f} sens/s]')
+        return metric
+                
+    def analyze(
+        self,
+        data: str | Dataset,
+        output_folder: str,
+        batch_size: int = 100,
+        log: logging.Logger | None = None,
+        **_
+    ):
+        """Parser analysis.
+
+        Args:
+            data (str | Dataset): Input dataset.
+            output_folder (str): Path to store the analysis.
+            batch_size (int): Inference batch size.
+            log (logging.Logger | None): Logger.
+        """
+        assert not is_distributed(), 'Distributed mode not supported'
+        if log is None and is_main():
+            log = logger('analysis', path=f'{output_folder}/analysis.log' if output_folder else None, level=logging.DEBUG)
+            log.info(self)
+            log.info(self.model)
+            log.info(f'Analysis from {data}')
+        data = self.transform_data(data)
+        loader, sampler = self.loader(data, batch_size=batch_size, shuffle=False)
+        start = time.time()
+        self.model.eval()
+        scores = []
+        with bar(desc='analyze', total=sampler.num_sens, leave=False, disable=not is_main()) as pbar:
+            for *batch, sens in loader:
+                scores += self.analyze_step(*to(self.device, *batch), sens)
+                pbar.update(len(sens))
+        if log:
+            elapsed = time.time()-start
+            log.info(f'{data.name}: {data.n_tokens/elapsed:.2f} tokens/s {len(data)/elapsed:.2f} sens/s]')
+            if output_folder and is_main():
+                with open(f'{output_folder}/{filename(data.path, extension=False)}.scr', 'wb') as writer:
+                    pickle.dump(scores, writer)
                 
     def train_step(
         self,
@@ -401,6 +492,15 @@ class Parser:
         sens: list[Sentence]
     ) -> tuple[ControlMetric, Metric]:
         raise NotImplementedError
+    
+    @torch.no_grad()
+    def debug_step(
+        self, 
+        masks: list[torch.Tensor],
+        targets: list[torch.Tensor],
+        sens: list[Sentence]
+    ) -> tuple[ControlMetric, Metric]:
+        raise NotImplementedError
         
     @torch.no_grad()
     def pred_step(
@@ -412,6 +512,15 @@ class Parser:
         raise NotImplementedError
     
 
-        
+    @torch.no_grad()
+    def analyze_step(
+        self,
+        inputs: list[torch.Tensor],
+        masks: list[torch.Tensor],
+        targets: list[torch.Tensor],
+        sens: list[Sentence]
+    ):
+        raise NotImplementedError
+    
         
         

@@ -2,14 +2,14 @@ from __future__ import annotations
 from argparse import ArgumentParser
 import torch 
 
-from separ.models.dep.parser import DependencySLParser
+from separ.models.dep.sl import DependencySLParser
 from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, PTB, Arc
 from separ.utils import Config, flatten, bar
 
 class HexaTaggingDependencyParser(DependencySLParser):
     """HexaTagging dependency parser from [Amini et al. (2023)](https://aclanthology.org/2023.acl-short.124/)."""
     NAME = 'dep-hexa'
-    PARAMS = ['proj']
+    PARAMS = DependencySLParser.PARAMS | {'proj'}
     
     class Labeler(DependencySLParser.Labeler):
         LEFT = 'L'
@@ -186,15 +186,8 @@ class HexaTaggingDependencyParser(DependencySLParser):
             return rec 
 
     
-    def __init__(
-        self,
-        input_tkzs: list[InputTokenizer],
-        target_tkzs: list[TargetTokenizer],
-        model_confs: list[Config],
-        proj: Optional[str],
-        device: int
-    ):
-        super().__init__(input_tkzs, target_tkzs, model_confs, device)
+    def __init__(self, proj: str | None, **kwargs):
+        super().__init__(**kwargs)
         self.lab = self.Labeler(proj)
         self.proj = proj 
         
@@ -234,14 +227,14 @@ class HexaTaggingDependencyParser(DependencySLParser):
         word_conf: Config, 
         tag_conf: Config | None = None,
         char_conf: Config | None = None,
-        proj: str | None = None,
+        proj: str | None = 'head',
         device: int = 0,
         **_
     ) -> HexaTaggingDependencyParser:
         if isinstance(data, str):
             data = CoNLL.from_file(data)
         
-        if 'pretrained' in word_conf:
+        if hasattr(word_conf, 'pretrained'):
             input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
             in_confs = [word_conf | input_tkzs[-1].conf, None, None]
         else:
@@ -273,7 +266,9 @@ class HexaTaggingDependencyParser(DependencySLParser):
         fence_tkz.train(fences)
         rel_tkz.train(rels)
         return cls(
-            input_tkzs, [hexa_tkz, fence_tkz, rel_tkz], 
-            [enc_conf, *in_confs, hexa_tkz.conf, fence_tkz.conf, rel_tkz.conf], 
-            proj, device 
+            input_tkzs=input_tkzs, 
+            target_tkzs=[hexa_tkz, fence_tkz, rel_tkz], 
+            model_confs=[enc_conf, *in_confs, hexa_tkz.conf, fence_tkz.conf, rel_tkz.conf], 
+            proj=proj, 
+            device=device 
         )

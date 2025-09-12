@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Iterable
 from argparse import ArgumentParser
 import torch
 
@@ -12,7 +11,7 @@ from separ.parser import Parser
 class Tagger(Parser):
     NAME = 'tag'
     MODEL = TagModel
-    PARAMS = ['FIELDS']
+    PARAMS = {'FIELDS'}
     DATASET = DATASET
     
     @classmethod
@@ -52,11 +51,11 @@ class Tagger(Parser):
         masks: list[torch.Tensor],
         targets: list[torch.Tensor],
         _: list[Sentence]
-    ) -> tuple[ControlMetric, TaggingMetric]:
+    ) -> tuple[ControlMetric, TaggingMetric, list[Sentence]]:
         scores = self.model(inputs[0], inputs[1:], *masks)
         loss = self.model.loss(scores, targets)
         preds = self.model.predict(scores)
-        return ControlMetric(loss=loss.detach()), self.METRIC(preds, targets)
+        return ControlMetric(loss=loss.detach()), self.METRIC(preds, targets), []
     
     @torch.no_grad()
     def pred_step(
@@ -64,7 +63,7 @@ class Tagger(Parser):
         inputs: list[torch.Tensor],
         masks: list[torch.Tensor],
         sens: list[Sentence]
-    ) -> Iterable[Sentence]:
+    ) -> list[Sentence]:
         scores = self.model(inputs[0], inputs[1:], *masks)
         preds = self.model.predict(scores)
         preds = [pred.split(mask.sum(-1).tolist()) for pred, mask in zip(preds, masks)]
@@ -89,7 +88,7 @@ class Tagger(Parser):
         if isinstance(data, str):
             data = cls.load_data(data)
         
-        if 'pretrained' in word_conf:
+        if hasattr(word_conf, 'pretrained'):
             word_tkz = PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')
         else:
             word_tkz = InputTokenizer('WORD', 'FORM')
