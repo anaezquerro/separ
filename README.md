@@ -9,7 +9,7 @@ Hi :wave: This is a [Python](https://www.python.org/) implementation for sequenc
     - Bracketing encoding ($k$-planar) ([Strzyz et al., 2020](https://aclanthology.org/2020.coling-main.223/)).
     - $4$-bit projective  encoding ([Gómez-Rodríguez et al., 2023](https://aclanthology.org/2023.emnlp-main.393/)).
     - $7$-bit $2$-planar encoding ([Gómez-Rodríguez et al., 2023](https://aclanthology.org/2023.emnlp-main.393/)).
-    - Hierarchical bracketing encoding ([Ezquerro et al., 2025a](https://arxiv.org/abs/2505.11693), **OFFICIAL**).
+    - Hierarchical bracketing encoding ([Ezquerro et al., 2025a](https://aclanthology.org/2025.acl-long.903/), **OFFICIAL**).
     - Hexa-Tagging projective encoding ([Amini et al., 2023](https://aclanthology.org/2023.acl-short.124/)).
     - Arc-Eager transition-based system ([Nivre and Fernández-González, 2002](https://aclanthology.org/J14-2002/)).
     - Biaffine dependency parser ([Dozat & Manning, 2017](https://arxiv.org/abs/1611.01734)).
@@ -29,7 +29,7 @@ Hi :wave: This is a [Python](https://www.python.org/) implementation for sequenc
 It is also the official repository of the following papers:
 
 - *Dependency Graph Parsing as Sequence Labeling* ([Ezquerro et al., 2024](https://aclanthology.org/2024.emnlp-main.659/)).
-- *Hierarchical Bracketing Encodings for Dependency Parsing as Tagging* ([Ezquerro et al., 2025a](https://arxiv.org/abs/2505.11693)).
+- *Hierarchical Bracketing Encodings for Dependency Parsing as Tagging* ([Ezquerro et al., 2025a](https://aclanthology.org/2025.acl-long.903/)).
 - *Hierarchical Bracketing Encodings Work for Dependency Graphs* ([Ezquerro et al., 2025b](https://arxiv.org/abs/2509.09388)).
 
 
@@ -69,14 +69,14 @@ You can train, evaluate and predict different parsers from terminal with the [ru
 | `dep-bit4` | $4$-bit projective  encoding | [Gómez-Rodríguez et al. (2023)](https://aclanthology.org/2023.emnlp-main.393/) | `proj`$\in$`{None, head, head+path, path}` | `None` | 
 | `dep-bit7` |  $7$-bit $2$-planar encoding | [Gómez-Rodríguez et al. (2023)](https://aclanthology.org/2023.emnlp-main.393/) | | 
 | `dep-hexa`   | Hexa-Tagging | [Amini et al. (2023)](https://aclanthology.org/2023.acl-short.124/) | `proj`$\in$`{head, head+path, path}` | `head` | 
-| `dep-hier` | Hierarchical Bracketing | [Ezquerro et al., (2025)](https://arxiv.org/abs/2505.11693) | `variant`$\in$ `{proj, head, head+path, path, nonp}`| `proj` | 
+| `dep-hier` | Hierarchical Bracketing | [Ezquerro et al., (2025a)](https://aclanthology.org/2025.acl-long.903/) | `variant`$\in$ `{proj, head, head+path, path, nonp}`| `proj` | 
 | `dep-eager` | Arc-Eager system | [Nivre and Fernández-González (2002)](https://aclanthology.org/J14-2002/) | `stack`$\in\mathbb{N}$, `buffer`$\in\mathbb{N}$, `proj`$\in$`{None, head, head+path, path}` | `1`, `1`, `None`| 
 | `dep-biaffine` | Biaffine dependency parser | [Dozat & Manning (2017)](https://arxiv.org/abs/1611.01734) | |
 | `con-idx` | Absolute and relative indexing  | [Gómez-Rodríguez and Vilares (2018)](https://aclanthology.org/D18-1162/) | `rel`$\in$`{true, false}` |  `false` | 
 | `con-tetra` | Tetra-Tagging | [Kitaev and Klein (2020)](https://aclanthology.org/2020.acl-main.557/) | | | 
 | `grp-idx` | Absolute and relative indexing  | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `rel`$\in$`{true, false}` |  `false` |
 | `grp-bracket` | Bracketing encoding ($k$-planar) | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | `2` | 
-| `grp-hier` | Hierarchical bracketing encoding | [Ezquerro et al., (2025)]() | |
+| `grp-hier` | Hierarchical bracketing encoding | [Ezquerro et al., (2025b)](https://arxiv.org/abs/2509.09388) | |
 | `grp-bit4k` | $4k$-bit encoding | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | `3` |
 | `grp-bit6k` | $6k$-bit encoding | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | `3` |
 | `grp-cov`| Covington | [Covington (2001)](https://ai1.ai.uga.edu/mc/dparser/dgpacmnew.pdf) | | | 
