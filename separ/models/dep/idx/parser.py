@@ -2,24 +2,34 @@ from __future__ import annotations
 from argparse import ArgumentParser
 import torch
 
-
-from separ.utils import Config, flatten, bar
-from separ.data import CoNLL, InputTokenizer, PretrainedTokenizer, CharacterTokenizer, TargetTokenizer , Arc
+from separ.data import CoNLL
 from separ.models.dep.sl import DependencySLParser
 
 
 class IndexDependencyParser(DependencySLParser):
     """Index Dependency Parser from [Strzyz et al., 2019](https://aclanthology.org/N19-1077/)"""
     NAME = 'dep-idx'
-    PARAMS = DependencySLParser.PARAMS | {'rel'}
     
     class Labeler(DependencySLParser.Labeler):
+        PARAMS = {'rel'}
+        NAMES = ['INDEX', 'REL']
 
-        def __init__(self, rel: bool = False):
+        def __init__(self, rel: bool, **_):
             self.rel = rel 
             
         def __repr__(self) -> str:
             return f'IndexDependencyLabeler(rel={self.rel})'
+        
+        @property
+        def NAME(self) -> str:
+            return f'dep-rel' if self.rel else 'dep-abs'
+        
+        @property 
+        def NAMES(self) -> list[str]:
+            if self.rel:
+                return ['INDEX(R)', 'DEPREL']
+            else:
+                return ['INDEX(A)', 'DEPREL']
             
         def encode(self, graph: CoNLL.Tree) -> tuple[list[str], list[str]]:
             indexes, rels = ['' for _ in range(len(graph))], ['' for _ in range(len(graph))]
@@ -40,77 +50,9 @@ class IndexDependencyParser(DependencySLParser):
                 else:
                     adjacent[dep, head] = True 
             return self.postprocess(adjacent, rels), well_formed and (n == adjacent.sum())
-        
-    def __init__(self, rel: bool, **kwargs):
-        super().__init__(**kwargs)
-        self.rel = rel
-        self.lab = self.Labeler(rel)
-            
+                
     @classmethod 
     def add_arguments(cls, argparser: ArgumentParser):
-        argparser = super(IndexDependencyParser, cls).add_arguments(argparser)
         argparser.add_argument('-rel', '--rel', action='store_true', help='Relative indexing')
         return argparser 
     
-    def transform(self, tree: CoNLL.Tree) -> CoNLL.Tree:
-        """Transformation step of one tree for batching."""
-        if not tree.transformed:
-            tree.INDEX, tree.REL = self.lab.encode(tree)
-            tree.transformed = True 
-        return tree 
-    
-    @classmethod 
-    def build(
-        cls, 
-        data: str | CoNLL,
-        enc_conf: Config,
-        word_conf: Config, 
-        tag_conf: Config | None = None,
-        char_conf: Config | None = None,
-        rel: bool = False,
-        device: int = 0,
-        **_
-    ) -> IndexDependencyParser:
-        if isinstance(data, str):
-            data = CoNLL.from_file(data)
-        
-        if hasattr(word_conf, 'pretrained'):
-            input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
-            in_confs = [word_conf | input_tkzs[-1].conf, None, None]
-        else:
-            input_tkzs = [InputTokenizer('WORD', 'FORM')]
-            in_confs = [word_conf]
-            if tag_conf is not None:
-                input_tkzs.append(InputTokenizer('TAG', 'UPOS'))
-                in_confs.append(tag_conf)
-            else:
-                in_confs.append(None)
-            if char_conf is not None:
-                input_tkzs.append(CharacterTokenizer('CHAR', 'FORM'))
-                in_confs.append(char_conf)
-            else:
-                in_confs.append(None)
-                
-            for tkz in input_tkzs:
-                tkz.train(data)
-
-            for conf, tkz in zip([c for c in in_confs if c is not None], input_tkzs):
-                conf.update(tkz.conf)
-            
-        index_tkz, rel_tkz = TargetTokenizer('INDEX'), TargetTokenizer('REL')
-        labeler = cls.Labeler(rel=rel)
-        indexes, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
-        index_tkz.train(indexes)
-        rel_tkz.train(rels)
-        return cls(
-            input_tkzs=input_tkzs,
-            target_tkzs=[index_tkz, rel_tkz], 
-            model_confs=[enc_conf, *in_confs, index_tkz.conf, rel_tkz.conf], 
-            rel=rel,
-            device=device
-        )
-        
-        
-
-
-   

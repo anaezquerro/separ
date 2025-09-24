@@ -11,18 +11,26 @@ from separ.models.dep.sl import DependencySLParser
 class BracketDependencyParser(DependencySLParser):
     """Bracket Dependency Parser from [Strzyz et al., 2019](https://aclanthology.org/N19-1077/)."""
     NAME = 'dep-bracket'
-    PARAMS = DependencySLParser.PARAMS | {'k'}
     
     class Labeler(DependencySLParser.Labeler):
         """Bracketing encoding for k-planar dependency trees"""
         DEFAULT = ''
         BRACKETS = ['<', '\\', '/', '>']
+        PARAMS = {'k'}
         
-        def __init__(self, k: int = 2):
+        def __init__(self, k: int, **_):
             self.k  = k
             
         def __repr__(self) -> str:
             return f'BracketDependencyLabeler(k={self.k})'
+        
+        @property
+        def NAMES(self) -> list[str]:
+            return [f'BRACKET({self.k})', 'DEPREL']
+        
+        @property
+        def NAME(self) -> str:
+            return f'dep-br({self.k})'
         
         def encode(self, tree: CoNLL.Tree) -> tuple[list[str], list[str]]:
             brackets = [[] for _ in range(len(tree))]
@@ -91,75 +99,8 @@ class BracketDependencyParser(DependencySLParser):
 
         def test(self, tree: CoNLL.Tree) -> bool:
             return super().test(tree.relaxed_planarize(self.k))
-                    
-    def __init__(self, k: int, **kwargs):
-        super().__init__(**kwargs)
-        self.k = k
-        self.lab = self.Labeler(k)
 
     @classmethod
     def add_arguments(cls, argparser: ArgumentParser) -> ArgumentParser:
-        argparser = super(BracketDependencyParser, cls).add_arguments(argparser)
         argparser.add_argument('-k', type=int, help='Number of planes')
         return argparser
-    
-    def transform(self, tree: CoNLL.Tree) -> CoNLL.Tree:
-        if not tree.transformed:
-            tree.BRACKET, tree.REL = self.lab.encode(tree)
-            tree.transformed = True 
-        return tree 
-            
-    def _pred(self, tree: CoNLL.Tree, bracket_pred: torch.Tensor, rel_pred: torch.Tensor) -> tuple[CoNLL.Tree, bool]:
-        rec, well_formed = self.lab.decode(self.BRACKET.decode(bracket_pred), self.REL.decode(rel_pred))
-        return tree.rebuild_from_arcs(rec), well_formed
-    
-    @classmethod 
-    def build(
-        cls, 
-        data: str | CoNLL,
-        enc_conf: Config,
-        word_conf: Config, 
-        tag_conf: Config | None = None,
-        char_conf: Config | None = None,
-        k: int = 2,
-        device: int = 0,
-        **_
-    ) -> BracketDependencyParser:
-        if isinstance(data, str):
-            data = CoNLL.from_file(data)
-        
-        if hasattr(word_conf, 'pretrained'):
-            input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
-            in_confs = [word_conf | input_tkzs[-1].conf, None, None]
-        else:
-            input_tkzs = [InputTokenizer('WORD', 'FORM')]
-            in_confs = [word_conf]
-            if tag_conf is not None:
-                input_tkzs.append(InputTokenizer('TAG', 'UPOS'))
-                in_confs.append(tag_conf)
-            else:
-                in_confs.append(None)
-            if char_conf is not None:
-                input_tkzs.append(CharacterTokenizer('CHAR', 'FORM'))
-                in_confs.append(char_conf)
-            else:
-                in_confs.append(None)
-                
-            for tkz in input_tkzs:
-                tkz.train(data)
-
-            for conf, tkz in zip([c for c in in_confs if c is not None], input_tkzs):
-                conf.update(tkz.conf)
-            
-        bracket_tkz, rel_tkz = TargetTokenizer('BRACKET'), TargetTokenizer('REL')
-        labeler = cls.Labeler(k)
-        brackets, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
-        bracket_tkz.train(brackets)
-        rel_tkz.train(rels)
-        return cls(
-            input_tkzs=input_tkzs,
-            target_tkzs=[bracket_tkz, rel_tkz],
-            model_confs=[enc_conf, *in_confs, bracket_tkz.conf, rel_tkz.conf], 
-            k=k,
-            device=device
-        )

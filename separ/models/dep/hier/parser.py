@@ -5,12 +5,11 @@ import torch
 from separ.models.dep.bracket.parser import BracketDependencyParser
 from separ.models.dep.sl import DependencySLParser
 from separ.data.struct import Bracket, Arc, Graph
-from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer
+from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, deprojectivize
 from separ.utils import Config, flatten, bar
 
 class HierarchicalDependencyParser(BracketDependencyParser):
     NAME = 'dep-hier'
-    PARAMS = DependencySLParser.PARAMS | {'variant'}
     
     class Bracket(Bracket):
         def __init__(self, symbol: str, structural: bool, p: int = 0, match: int = 0):
@@ -45,13 +44,30 @@ class HierarchicalDependencyParser(BracketDependencyParser):
             return [cls(bracket[0], '^' in bracket, bracket.count('*'), None) for bracket in brackets]
     
     class Labeler(DependencySLParser.Labeler):
+        PARAMS = {'variant'}
+        NAMES = ['BRACKET', 'REL']
         
-        def __init__(self, variant: str):
+        def __init__(self, variant: str, **_):
             self.variant = variant 
             
         def __repr__(self):
             return f'HierarchicalBracketLabeler(variant={self.variant})'
         
+        @property
+        def NAMES(self) -> list[str]:
+            if self.variant == 'nonp':
+                return ['HIER(np)', 'DEPREL']
+            elif self.variant == 'proj':
+                return ['HIER', 'DEPREL']
+            else:
+                abbr = ''.join(t[0] for t in self.proj.split('+'))
+                return ['HIER', f'DEPREL({abbr})']
+            
+        @property
+        def NAME(self) -> str:
+            abbr = ''.join(t[0] for t in self.proj.split('+'))
+            return f'dep-hier({abbr})'
+                
         def get_ropes(self, graph: Graph) -> list[tuple[Arc, list[Arc]]]:
             """Gets the structural and auxiliar arcs of a graph.
 
@@ -195,98 +211,12 @@ class HierarchicalDependencyParser(BracketDependencyParser):
                                     added = True 
                         stack = stack[:-(j+1)] + new[::-1]
                     well_formed = well_formed and added 
-            return self.postprocess(adjacent, rels), len(stack) == 0 and well_formed and (adjacent.sum() == len(labels))
-        
-        def test(self, graph: CoNLL.Graph) -> bool:
-            if self.variant != 'nonp':
-                graph = graph.projectivize()
-            return super().test(graph)
-        
-        def theoretical(self, tree: CoNLL.Tree) -> CoNLL.Tree:
-            rec = super().theoretical(tree)
+            arcs = self.postprocess(adjacent, rels)
             if self.variant in ['head', 'path', 'head+path']:
-                rec = rec.deprojectivize(self.variant)
-            return rec 
+                arcs = deprojectivize(arcs, self.variant)
+            return arcs, len(stack) == 0 and well_formed and (adjacent.sum() == len(labels))
         
-        def empirical(
-            self, 
-            tree: CoNLL.Tree,
-            known_labels: list[str],
-            known_rels: list[str],
-            LABEL: str, 
-            REL: str
-        ) -> CoNLL.Tree:
-            rec = super().empirical(tree, known_labels, known_rels, LABEL, REL)
-            if self.variant in ['head', 'path', 'head+path']:
-                rec = rec.deprojectivize(self.variant)
-            return rec 
-
-        
-    def __init__(self, variant: str, **kwargs):
-        super(BracketDependencyParser, self).__init__(**kwargs)
-        self.variant = variant
-        self.lab = self.Labeler(variant)
-    
     @classmethod
     def add_arguments(cls, argparser: ArgumentParser) -> ArgumentParser:
-        argparser = super().add_arguments(argparser)
         argparser.add_argument('-v', '--variant', type=str, default='proj', choices=['proj', 'head', 'path', 'head+path', 'nonp'], help='Projectivity selection')
         return argparser
-    
-    def _pred(self, graph: CoNLL.Graph, bracket_pred: torch.Tensor, rel_pred: torch.Tensor) -> tuple[CoNLL.Graph, bool]:
-        rec, well_formed = self.lab.decode(self.BRACKET.decode(bracket_pred), self.REL.decode(rel_pred))
-        pred = graph.rebuild_from_arcs(rec)
-        if self.variant in ['head', 'path', 'head+path']:
-            pred = pred.deprojectivize(self.variant)
-        return pred, well_formed
-    
-    @classmethod 
-    def build(
-        cls, 
-        data: str | CoNLL,
-        enc_conf: Config,
-        word_conf: Config, 
-        tag_conf: Config | None = None,
-        char_conf: Config | None = None,
-        variant: str = 'proj',
-        device: int = 0,
-        **_
-    ) -> HierarchicalDependencyParser:
-        if isinstance(data, str):
-            data = CoNLL.from_file(data)
-        
-        if hasattr(word_conf, 'pretrained'):
-            input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
-            in_confs = [word_conf | input_tkzs[-1].conf, None, None]
-        else:
-            input_tkzs = [InputTokenizer('WORD', 'FORM')]
-            in_confs = [word_conf]
-            if tag_conf is not None:
-                input_tkzs.append(InputTokenizer('TAG', 'UPOS'))
-                in_confs.append(tag_conf)
-            else:
-                in_confs.append(None)
-            if char_conf is not None:
-                input_tkzs.append(CharacterTokenizer('CHAR', 'FORM'))
-                in_confs.append(char_conf)
-            else:
-                in_confs.append(None)
-                
-            for tkz in input_tkzs:
-                tkz.train(data)
-
-            for conf, tkz in zip([c for c in in_confs if c is not None], input_tkzs):
-                conf.update(tkz.conf)
-            
-        bracket_tkz, rel_tkz = TargetTokenizer('BRACKET'), TargetTokenizer('REL')
-        labeler = cls.Labeler(variant)
-        brackets, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
-        bracket_tkz.train(brackets)
-        rel_tkz.train(rels)
-        return cls(
-            input_tkzs=input_tkzs, 
-            target_tkzs=[bracket_tkz, rel_tkz], 
-            model_confs=[enc_conf, *in_confs, bracket_tkz.conf, rel_tkz.conf], 
-            variant=variant,
-            device=device
-        )

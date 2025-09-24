@@ -161,47 +161,19 @@ class CoNLL(Dataset):
                 proj = proj.rebuild_from_arcs(proj.arcs)
             return proj 
         
-        def deprojectivize(self, mode: str = 'head') -> CoNLL.Tree:
-            """Pseudo-deprojective algorithm from [Nivre and Nilsson, (2005)](https://aclanthology.org/P05-1013/).
+        # def deprojectivize(self, mode: str = 'head') -> CoNLL.Tree:
+        #     """Pseudo-deprojective algorithm from [Nivre and Nilsson, (2005)](https://aclanthology.org/P05-1013/).
 
-            Args:
-                mode (str): Mode to decode the lifting operations.
+        #     Args:
+        #         mode (str): Mode to decode the lifting operations.
 
-            Returns:
-                CoNLL.Tree: Non-projective recovered dependency tree.
-            """
-            assert mode in ['head', 'head+path', 'path'], NotImplementedError('The projective mode is not available')
-            nonp = self.copy() # create non-projective copy
-            # get non-projective arcs
-            nonp_arcs = [arc for arc in nonp.arcs if '¡' in arc.REL and arc.HEAD != 0]
-            while len(nonp_arcs) > 0:
-                # search a target arc
-                nonp_arc = nonp_arcs[0]
-                hrel = nonp_arc.REL.split('¡')[-1]
-                found = False
-                if mode == 'head+path' or mode == 'path':
-                    # get arcs where nonp_arc.HEAD = arc.HEAD
-                    search = sorted(arc for arc in nonp.arcs if arc.HEAD == nonp_arc.HEAD and arc.DEP != nonp_arc.DEP) 
-                    while len(search) > 0:
-                        target = search.pop(0)
-                        deps = sorted(arc for arc in nonp.arcs if arc.HEAD == target.DEP) 
-                        if f'{target.REL}!' == f'{hrel}!' and (mode != 'path' or not any('!' in dep.REL for dep in deps)):
-                            nonp_arc.HEAD = target.DEP
-                            found = True
-                            break 
-                        search += deps
-                if not found and mode != 'path':
-                    search = sorted(arc for arc in nonp.arcs if arc.HEAD == nonp_arc.HEAD and arc.DEP != nonp_arc.DEP) 
-                    while len(search) > 0:
-                        target = search.pop(0)
-                        if target.REL == hrel:
-                            nonp_arc.HEAD = target.DEP 
-                            break 
-                        search += sorted(arc for arc in nonp.arcs if arc.HEAD == target.DEP) 
-                nonp_arc.REL = '¡'.join(nonp_arc.REL.split('¡')[:-1])
-                if '¡' not in nonp_arc.REL:
-                    nonp_arcs.pop(0)
-            return nonp.rebuild_from_arcs(nonp.arcs)
+        #     Returns:
+        #         CoNLL.Tree: Non-projective recovered dependency tree.
+        #     """
+        #     
+        #     nonp = self.copy() # create non-projective copy
+        #     nonp_arcs = deprojectivize(nonp.arcs, mode)
+        #     return nonp.rebuild_from_arcs(nonp_arcs)
         
         def planarize(self, k: int) -> CoNLL.Tree:
             if len(self.planes) <= k:
@@ -241,3 +213,34 @@ def bfs(arcs: list[Arc]) -> Iterable[Arc]:
             queue.append(dep.DEP)
             
         
+def deprojectivize(arcs: list[Arc], mode: str) -> list[Arc]:
+    assert mode in ['head', 'head+path', 'path'], NotImplementedError('The projective mode is not available')
+    nonp_arcs = [arc for arc in arcs if '¡' in arc.REL and arc.HEAD != 0]
+    while len(nonp_arcs) > 0:
+        # search a target arc
+        nonp_arc = nonp_arcs[0]
+        hrel = nonp_arc.REL.split('¡')[-1]
+        found = False
+        if mode == 'head+path' or mode == 'path':
+            # get arcs where nonp_arc.HEAD = arc.HEAD
+            search = sorted(arc for arc in arcs if arc.HEAD == nonp_arc.HEAD and arc.DEP != nonp_arc.DEP) 
+            while len(search) > 0:
+                target = search.pop(0)
+                deps = sorted(arc for arc in arcs if arc.HEAD == target.DEP) 
+                if f'{target.REL}!' == f'{hrel}!' and (mode != 'path' or not any('!' in dep.REL for dep in deps)):
+                    nonp_arc.HEAD = target.DEP
+                    found = True
+                    break 
+                search += deps
+        if not found and mode != 'path':
+            search = sorted(arc for arc in arcs if arc.HEAD == nonp_arc.HEAD and arc.DEP != nonp_arc.DEP) 
+            while len(search) > 0:
+                target = search.pop(0)
+                if target.REL == hrel:
+                    nonp_arc.HEAD = target.DEP 
+                    break 
+                search += sorted(arc for arc in arcs if arc.HEAD == target.DEP) 
+        nonp_arc.REL = '¡'.join(nonp_arc.REL.split('¡')[:-1])
+        if '¡' not in nonp_arc.REL:
+            nonp_arcs.pop(0)
+    return arcs

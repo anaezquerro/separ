@@ -1,12 +1,11 @@
 from __future__ import annotations
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Action
 import torch
 
 from separ.models.tag.model import TagModel
 from separ.utils import ControlMetric, TaggingMetric, acc, Config, get_mask
 from separ.data import Dataset, Sentence, PretrainedTokenizer, CharacterTokenizer, InputTokenizer, TargetTokenizer, DATASET
 from separ.parser import Parser
-
 
 class Tagger(Parser):
     NAME = 'tag'
@@ -16,7 +15,6 @@ class Tagger(Parser):
     
     @classmethod
     def add_arguments(cls, argparser: ArgumentParser) -> ArgumentParser:
-        argparser = Parser.add_arguments(argparser)
         argparser.add_argument('-f', '--fields', type=str, nargs='*', help='Fields to predict')
         return argparser
     

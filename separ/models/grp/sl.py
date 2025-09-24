@@ -16,6 +16,7 @@ class GraphSLParser(GraphParser, Tagger):
         """Shared methods of a graph labeler."""
         SEP = '$'
         REL = 'punct'
+        PARAMS = set()
 
         def __repr__(self) -> str:
             raise NotImplementedError 
@@ -56,9 +57,13 @@ class GraphSLParser(GraphParser, Tagger):
                 arc.REL = rels[arc.DEP-1].pop(0) if len(rels[arc.DEP-1]) > 0 else self.REL 
             return arcs
         
-    def __init__(self, target_tkzs: list[TargetTokenizer], join_rels: bool, **kwargs):
-        super().__init__(target_tkzs=target_tkzs, **kwargs)
-        self.join_rels = join_rels
+    def __init__(self, **_):
+        super().__init__(**_)
+        self.lab = self.Labeler(**_)
+        
+    @property 
+    def PARAMS(self) -> set[str]:
+        return GraphParser.PARAMS | {'join_rels'} | self.Labeler.PARAMS
         
     @property
     def LABEL(self) -> TargetTokenizer:
@@ -66,7 +71,6 @@ class GraphSLParser(GraphParser, Tagger):
     
     @classmethod
     def add_arguments(cls, argparser: ArgumentParser):
-        argparser = GraphParser.add_arguments(argparser)
         argparser.add_argument('--join-rels', action='store_true', help='Whether to join arc labels')
         return argparser
     
@@ -202,8 +206,8 @@ class GraphSLParser(GraphParser, Tagger):
         join_rels: bool,
         data: SDP | EnhancedCoNLL,
         word_conf: Config, 
-        tag_conf: Config | None = None,
-        char_conf: Config | None = None,
+        tag_conf: Config | None,
+        char_conf: Config | None,
     ):
         if hasattr(word_conf, 'pretrained'):
             input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM', bos=not join_rels)]
@@ -233,16 +237,18 @@ class GraphSLParser(GraphParser, Tagger):
     @classmethod
     def build_targets(
         cls,
-        label_tkz: TargetTokenizer, 
-        rel_tkz: TargetTokenizer,
-        labeler: GraphSLParser.Labeler, 
+        lab: GraphSLParser.Labeler, 
         data: SDP | EnhancedCoNLL,
         join_rels: bool,
-    ):
-        labels, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
-        label_tkz.train(labels)
+    ) -> tuple[list[TargetTokenizer], list[Config], bool]:
+        target_tkzs = [TargetTokenizer(name) for name in lab.NAMES]
+        *labels, rels = map(flatten, zip(*bar(map(lab.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
+        for tkz, _labels in zip(target_tkzs, labels):
+            tkz.train(_labels)
+        
+        rel_tkz = target_tkzs[-1]
         if not join_rels:
-            rel_tkz.train(flatten(rel.split(labeler.SEP) for rel in rels))
+            rel_tkz.train(flatten(rel.split(lab.SEP) for rel in rels))
             rel_conf = rel_tkz.conf
             # get root rels
             root_rels = set()
@@ -261,4 +267,30 @@ class GraphSLParser(GraphParser, Tagger):
             rel_conf = rel_tkz.conf
             root_rel = None
         rel_conf.join_rels = join_rels
-        return label_tkz, rel_tkz, rel_conf, root_rel
+        return target_tkzs, [tkz.conf for tkz in target_tkzs[:-1]] + [rel_conf], root_rel
+    
+    @classmethod
+    def build(
+        cls,
+        data: SDP | EnhancedCoNLL | str, 
+        enc_conf: Config,
+        word_conf: Config, 
+        tag_conf: Config | None = None,
+        char_conf: Config | None = None,
+        join_rels: bool = False,
+        **_
+    ) -> GraphSLParser:
+        if isinstance(data, str):
+            data = cls.load_data(data)
+        
+        input_tkzs, in_confs = cls.build_inputs(join_rels, data, word_conf, tag_conf, char_conf)
+        target_tkzs, target_confs, root_rel = cls.build_targets(cls.Labeler(**_), data, join_rels)
+        return cls(
+            input_tkzs=input_tkzs,
+            target_tkzs=target_tkzs, 
+            model_confs=[enc_conf, *in_confs] + target_confs, 
+            join_rels=join_rels,
+            root_rel=root_rel,
+            **_
+        )
+        

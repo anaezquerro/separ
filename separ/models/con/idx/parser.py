@@ -14,12 +14,24 @@ def extra_leaves(tag: str) -> str:
 
 class IndexConstituencyParser(ConstituencySLParser):
     NAME = 'con-idx'
-    PARAMS = ConstituencySLParser.PARAMS | {'rel'}
     
     class Labeler:
-        def __init__(self, rel: bool, ROOT: str = 'S'):
+        PARAMS = {'rel'}
+        
+        def __init__(self, rel: bool, ROOT: str = 'S', **_):
             self.rel = rel 
             self.ROOT = ROOT
+            
+        @property
+        def NAME(self) -> str:
+            return 'con-rel' if self.rel else 'con-abs'
+            
+        @property
+        def NAMES(self) -> list[str]:
+            if self.rel:
+                return ['INDEX(R)', 'CON', 'LEAF']
+            else:
+                return ['INDEX(A)', 'CON', 'LEAF']
             
         def __repr__(self) -> str:
             return f'IndexConstituencyLabeler(rel={self.rel})'
@@ -72,70 +84,10 @@ class IndexConstituencyParser(ConstituencySLParser):
             rec = PTB.Tree.from_spans(tree.preterminals, spans).recover_unary()
             return rec == tree and well_formed
         
-    def __init__(self, rel: bool, **kwargs):
-        super().__init__(**kwargs)
-        self.rel = rel 
-        self.lab = self.Labeler(rel)
-        
     @classmethod
     def add_arguments(cls, argparser: ArgumentParser):
         argparser = ConstituencySLParser.add_arguments(argparser)
         argparser.add_argument('-rel', '--rel', action='store_true', help='Relative indexing')
         return argparser
-    
-    def transform(self, tree: PTB.Tree) -> PTB.Tree:
-        if not tree.transformed:
-            tree.INDEX, tree.CON, tree.LEAF = self.lab.encode(tree)
-            tree.transformed = True 
-        return tree
-
-    @classmethod
-    def build(
-        cls, 
-        data: str | PTB,
-        enc_conf: Config,
-        word_conf: Config,
-        char_conf: Config | None = None,
-        rel: bool = False,
-        device: int = 0,
-        evalb: tuple[str, str, str] | None = None,
-        **_
-    ) -> IndexConstituencyParser:
-        if isinstance(data, str):
-            data = PTB.from_file(data)
-        
-        if 'pretrained' in word_conf:
-            input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
-            in_confs = [word_conf | input_tkzs[-1].conf, None, None]
-        else:
-            word_tkz = InputTokenizer('WORD', 'FORM')
-            word_tkz.train(data)
-            word_conf.update(word_tkz.conf)
-            input_tkzs = [word_tkz]
-            
-            if char_conf is not None:
-                char_tkz = CharacterTokenizer('CHAR', 'FORM')
-                char_tkz.train(data)
-                char_conf.update(char_tkz.conf)
-                input_tkzs.append(char_tkz)
-                
-            in_confs = [word_conf, None, char_conf]
-                    
-        # train target tokenizers 
-        index_tkz, con_tkz, leaf_tkz = TargetTokenizer('INDEX'), TargetTokenizer('CON'), TargetTokenizer('LEAF')
-        labeler = cls.Labeler(rel=rel)
-        indexes, cons, leaves = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
-        index_tkz.train(indexes)
-        con_tkz.train(cons)
-        leaf_tkz.train(leaves)
-        return cls(
-            input_tkzs=input_tkzs, 
-            target_tkzs=[index_tkz, con_tkz, leaf_tkz], 
-            model_confs=[enc_conf, *in_confs, index_tkz.conf, con_tkz.conf, leaf_tkz.conf], 
-            rel=rel, 
-            evalb=evalb,
-            device=device
-        )
-            
         
             

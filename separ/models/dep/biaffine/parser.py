@@ -82,29 +82,8 @@ class BiaffineDependencyParser(DependencyParser):
         if isinstance(data, str):
             data = CoNLL.from_file(data)
             
-        if hasattr(word_conf, 'pretrained'):
-            input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM', bos=True)]
-            in_confs = [word_conf | input_tkzs[-1].conf, None, None]
-        else:
-            input_tkzs = [InputTokenizer('WORD', 'FORM', bos=True)]
-            in_confs = [word_conf]
-            if tag_conf is not None:
-                input_tkzs.append(InputTokenizer('TAG', 'UPOS', bos=True))
-                in_confs.append(tag_conf)
-            else:
-                in_confs.append(None)
-            if char_conf is not None:
-                input_tkzs.append(CharacterTokenizer('CHAR', 'FORM', bos=True))
-                in_confs.append(char_conf)
-            else:
-                in_confs.append(None)
-                
-            for tkz in input_tkzs:
-                tkz.train(data)
-
-            for conf, tkz in zip([c for c in in_confs if c is not None], input_tkzs):
-                conf.update(tkz.conf)
-                
+        input_tkzs, in_confs = cls.build_inputs(data, word_conf, tag_conf, char_conf)
+            
         rel_tkz = TargetTokenizer('REL')
         rel_tkz.train([arc.REL for tree in data for arc in tree.arcs])
         return cls(

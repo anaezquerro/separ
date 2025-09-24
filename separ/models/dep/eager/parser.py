@@ -4,15 +4,15 @@ import torch
 
 from separ.models.dep.parser import DependencyParser
 from separ.models.dep.eager.model import ArcEagerDependencyModel
-from separ.utils import DependencyMetric, get_mask, acc, Config, bar, flatten, ControlMetric
-from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer
+from separ.utils import get_mask, acc, Config, bar, flatten, ControlMetric
+from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, deprojectivize
 from separ.data.struct import Arc, adjacent_from_arcs, candidates_no_cycles
 
 class ArcEagerDependencyParser(DependencyParser):
     """Transition-based Arc-Eager Dependency Parser from [Nivre and Fernández-González, 2012](https://aclanthology.org/J14-2002.pdf)."""
     NAME = 'dep-eager'
     MODEL = ArcEagerDependencyModel
-    PARAMS = DependencyParser.PARAMS | {'stack', 'buffer', 'proj'}
+    PARAMS = {'stack', 'buffer', 'proj'}
     
     class State:
         def __init__(self, stack: list[int], buffer: list[int]):
@@ -177,17 +177,18 @@ class ArcEagerDependencyParser(DependencyParser):
                 head = candidates_no_cycles(adjacent, n).pop(0)
                 adjacent[dep, head] = True 
                 arcs.append(Arc(head, dep, self.DEFAULT_REL))
+            if self.proj:
+                arcs = deprojectivize(arcs)
             return arcs 
         
                 
-    def __init__(self, stack: int, buffer: int, proj: str | None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, stack: int, buffer: int, proj: str | None, **_):
+        super().__init__(**_)
         self.stack, self.buffer, self.proj = stack, buffer, proj 
         self.system = self.System(stack, buffer, proj)
         
     @classmethod 
     def add_arguments(cls, argparser: ArgumentParser):
-        argparser = super().add_arguments(argparser)
         argparser.add_argument('--stack', type=int, default=1, help='Number of tokens from the stack used to represent a state')
         argparser.add_argument('--buffer', type=int, default=1, help='Number of tokens from the buffer used to represent a state')
         argparser.add_argument('--proj', default=None, type=str, choices=['head', 'head+path', 'path'], help='Pseudo-projective mode')
@@ -212,8 +213,6 @@ class ArcEagerDependencyParser(DependencyParser):
     def _pred(self, tree: CoNLL.Tree, oracle: Oracle) -> CoNLL.Tree:
         arcs = self.system.postprocess(list(oracle.recovered), len(tree))
         pred = tree.rebuild_from_arcs(arcs)
-        if self.proj:
-            pred = pred.deprojectivize(self.proj)
         return pred 
             
     def train_step(
@@ -288,29 +287,7 @@ class ArcEagerDependencyParser(DependencyParser):
     ) -> ArcEagerDependencyParser:
         if isinstance(data, str):
             data = CoNLL.from_file(data)
-        
-        if hasattr(word_conf, 'pretrained'):
-            input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM', bos=True, eos=True)]
-            in_confs = [word_conf | input_tkzs[-1].conf, None, None]
-        else:
-            input_tkzs = [InputTokenizer('WORD', 'FORM', bos=True, eos=True)]
-            in_confs = [word_conf]
-            if tag_conf is not None:
-                input_tkzs.append(InputTokenizer('TAG', 'UPOS', bos=True, eos=True))
-                in_confs.append(tag_conf)
-            else:
-                in_confs.append(None)
-            if char_conf is not None:
-                input_tkzs.append(CharacterTokenizer('CHAR', 'FORM', bos=True, eos=True))
-                in_confs.append(char_conf)
-            else:
-                in_confs.append(None)
-                
-            for tkz in input_tkzs:
-                tkz.train(data)
-
-            for conf, tkz in zip([c for c in in_confs if c is not None], input_tkzs):
-                conf.update(tkz.conf)
+        input_tkzs, in_confs = cls.build_inputs(data, word_conf, tag_conf, char_conf)
         
         # train target tokenizers 
         action_tkz, rel_tkz = TargetTokenizer('ACTION'), TargetTokenizer('REL')

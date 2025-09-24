@@ -55,10 +55,13 @@ class Dataset(torch.utils.data.Dataset):
         batch_size: int, 
         shuffle: bool, 
         collate: Callable, 
-        lens: dict[int, int] | None = None
+        lens: dict[int, int] | None = None,
+        max_len: int | None = None
     ) -> tuple[DataLoader, Sampler]:
         if lens is None:
             lens = self.lens
+        if max_len is not None:
+            lens = {idx: length for idx, length in lens.items() if length <= max_len}
         sampler = TokenizedBatchSampler(lens, batch_size=batch_size, shuffle=shuffle)
         loader = DataLoader(self, batch_sampler=sampler, collate_fn=collate, shuffle=False, pin_memory=True)
         return loader, sampler 

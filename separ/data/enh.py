@@ -114,6 +114,9 @@ class EnhancedCoNLL(CoNLL):
             nodes = [node.to_sdp() for node in self.nodes]
             graph = SDP.Graph(nodes, [], self.ID, [f'#{self.ID}'] + list(range(len(self))))
             return graph.rebuild_from_arcs(self.arcs)
+        
+        def to_conllu(self) -> CoNLL.Tree:
+            return CoNLL.Tree.from_raw(self.format(), self.ID)
 
     @classmethod
     def from_file(cls, path: str) -> CoNLL:
@@ -124,5 +127,9 @@ class EnhancedCoNLL(CoNLL):
     def to_sdp(self) -> SDP:
         sens = [sen.to_sdp() for sen in self.sens]
         return SDP(sens, None)
+
+    def to_conllu(self) -> CoNLL:
+        sens = [sen.to_conllu() for sen in self.sens]
+        return CoNLL(sens, self.path)
         
     

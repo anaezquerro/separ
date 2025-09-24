@@ -11,8 +11,11 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
     
     class Labeler:
         ROOT = '$'
+        PARAMS = {'binarize'}
+        NAME = 'con-tetra'
+        NAMES = ['TETRA', 'FENCE', 'CON', 'POS']
         
-        def __init__(self, binarize: int = 1):
+        def __init__(self, binarize: int, **_):
             self.binarize = binarize 
         
         def __repr__(self) -> str:
@@ -89,21 +92,6 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
             rec, well_formed = self.decode(*self.encode(tree), tree.FORM)
             return rec == tree and well_formed
         
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.lab = self.Labeler()
-        
-    @classmethod 
-    def add_arguments(cls, argparser: ArgumentParser):
-        argparser = super(TetraTaggingConstituencyParser, cls).add_arguments(argparser)
-        return argparser 
-        
-    def transform(self, tree: PTB.Tree) -> PTB.Tree:
-        if not tree.transformed:
-            tree.TETRA, tree.FENCE, tree.CON, tree.LEAF = self.lab.encode(tree)
-            tree.transformed = True 
-        return tree 
-    
     def collate(self, trees: list[PTB.Tree]):
         inputs, (tmask, fmask, cmask, lmask), targets, *_ = super().collate(trees)
         lens = lmask.sum(-1)
@@ -124,56 +112,3 @@ class TetraTaggingConstituencyParser(ConstituencySLParser):
         rec.ID = tree.ID
         return rec, well_formed
   
-    @classmethod
-    def build(
-        cls, 
-        data: str | PTB,
-        enc_conf: Config,
-        word_conf: Config,
-        char_conf: Config | None = None,
-        evalb: tuple[str, str, str] | None = None,
-        device: int = 0,
-        **_
-    ) -> TetraTaggingConstituencyParser:
-        if isinstance(data, str):
-            data = PTB.from_file(data)
-        
-        if 'pretrained' in word_conf:
-            input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
-            in_confs = [word_conf | input_tkzs[-1].conf, None, None]
-        else:
-            word_tkz = InputTokenizer('WORD', 'FORM')
-            word_tkz.train(data)
-            word_conf.update(word_tkz.conf)
-            input_tkzs = [word_tkz]
-            
-            if char_conf is not None:
-                char_tkz = CharacterTokenizer('CHAR', 'FORM')
-                char_tkz.train(data)
-                char_conf.update(char_tkz.conf)
-                input_tkzs.append(char_tkz)
-                
-            in_confs = [word_conf, None, char_conf]
-        
-        # train target tokenizers 
-        tetra_tkz = TargetTokenizer('TETRA')
-        fence_tkz = TargetTokenizer('FENCE')
-        con_tkz = TargetTokenizer('CON')
-        leaf_tkz = TargetTokenizer('LEAF')
-        labeler = cls.Labeler()
-        labels, fences, cons, leaves = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
-        tetra_tkz.train(labels)
-        fence_tkz.train(fences)
-        con_tkz.train(cons)
-        leaf_tkz.train(leaves)
-        
-        return cls(
-            input_tkzs=input_tkzs, 
-            target_tkzs=[tetra_tkz, fence_tkz, con_tkz, leaf_tkz], 
-            model_confs=[enc_conf, *in_confs, tetra_tkz.conf, fence_tkz.conf, con_tkz.conf, leaf_tkz.conf], 
-            evalb=evalb,
-            device=device
-        )
-            
-        
-            

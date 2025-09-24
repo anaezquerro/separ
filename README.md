@@ -90,7 +90,7 @@ To train a parser from scratch, the [run.py](run.py) script should follow this s
 
 ```shell
 python3 run.py <parser-identifier> <specific-args> \
-    -c <conf> -d <device> (--load <pt-path> --seed <seed>) \
+    -c <conf> -d <device> (--load <pt-path> --seed <seed> --evalb <*evalb-paths>) \
     train --train <train-path> --dev <dev-path> --test <test-paths> \
     -o <output-folder> (--run-name <run-name>)
 ```
@@ -106,6 +106,7 @@ where:
 And optionally:
 - `<pt-path>`: Whether to load the parser from an existing `.pt` file. 
 - `<seed>`: Specify other seed value. By default, this code always uses the seed  `123`.
+- `<*evalb-paths>`: Paths to evaluation scripts. This command is only available for constituency and graph parsers (see [Evaluation](#evaluation) instructions).
 - `<run-name>`: [wandb](https://wandb.ai/site/) identifier.
 
 **W&B logging**: [SePar](https://github.com/anaezquerro/separ) also allows model debugging with [wandb](https://wandb.ai/site/). Please. follow [these instructions](https://docs.wandb.ai/quickstart/) to create and account and connect it with your local installation. Note that [SePar](https://github.com/anaezquerro/separ) still works without a [wandb](https://wandb.ai/site/) account.

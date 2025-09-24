@@ -1,7 +1,8 @@
+from __future__ import annotations
 import torch
 
-from separ.data import CoNLL, Arc, forms_cycles, candidates_no_cycles
-from separ.utils import ControlMetric, acc, avg, DependencyMetric, TaggingMetric
+from separ.data import CoNLL, Arc, forms_cycles, candidates_no_cycles, TargetTokenizer
+from separ.utils import ControlMetric, acc, avg, DependencyMetric, TaggingMetric, Config, flatten, bar
 from separ.models.tag import Tagger
 from separ.models.dep.parser import DependencyParser
 from separ.models.tag.model import TagModel
@@ -10,6 +11,7 @@ class DependencySLParser(DependencyParser, Tagger):
     MODEL = TagModel
     
     class Labeler:
+        PARAMS = set()
         """Shared methods of a dependency labeler."""
         
         def encode(self, tree: CoNLL.Tree) -> tuple[list[str], list[str]]:
@@ -67,6 +69,14 @@ class DependencySLParser(DependencyParser, Tagger):
                 adjacent[dep, head] = True
             return sorted(arcs)
         
+    def __init__(self, **_):
+        super().__init__(**_)
+        self.lab = self.Labeler(**_)
+        
+    @property
+    def PARAMS(cls):
+        return cls.Labeler.PARAMS
+        
     @property
     def TAG_METRIC(self) -> TaggingMetric:
         return TaggingMetric(self.target_tkzs)
@@ -74,6 +84,14 @@ class DependencySLParser(DependencyParser, Tagger):
     def _pred(self, tree: CoNLL.Tree, *preds: list[torch.Tensor]) -> tuple[CoNLL.Tree, bool]:
         rec, well_formed = self.lab.decode(*[tkz.decode(pred) for tkz, pred in zip(self.target_tkzs, preds)])
         return tree.rebuild_from_arcs(rec), well_formed
+    
+    def transform(self, tree: CoNLL.Tree) -> CoNLL.Tree:
+        if not tree.transformed:
+            for name, labels in zip(self.lab.NAMES, self.lab.encode(tree)):
+                if name not in tree.FIELDS:
+                    setattr(tree, name, labels)
+            tree.transformed = True 
+        return tree 
     
     @torch.no_grad()
     def pred_step(
@@ -111,3 +129,37 @@ class DependencySLParser(DependencyParser, Tagger):
         control = ControlMetric(**dict(zip(self.TARGET_FIELDS, map(acc, targets, targets))), well_formed=avg(well_formed)*100)
         return control, self.TAG_METRIC(targets, targets), self.METRIC(pred_trees, trees), pred_trees
 
+    @classmethod
+    def build_targets(
+        cls,
+        lab: DependencySLParser.Labeler, 
+        data: CoNLL
+    ) -> list[TargetTokenizer]:
+        target_tkzs = [TargetTokenizer(name) for name in lab.NAMES]
+        labels = zip(*bar(map(lab.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]'))
+        for tkz, _labels in zip(target_tkzs, map(flatten, labels)):
+            tkz.train(_labels)
+        return target_tkzs
+
+    @classmethod 
+    def build(
+        cls, 
+        data: str | CoNLL,
+        enc_conf: Config,
+        word_conf: Config, 
+        tag_conf: Config | None = None,
+        char_conf: Config | None = None,
+        **_
+    ) -> DependencySLParser:
+        if isinstance(data, str):
+            data = CoNLL.from_file(data)
+        input_tkzs, in_confs = cls.build_inputs(data, word_conf, tag_conf, char_conf)
+            
+        target_tkzs = cls.build_targets(cls.Labeler(**_), data)
+        
+        return cls(
+            input_tkzs=input_tkzs, 
+            target_tkzs=target_tkzs,
+            model_confs=[enc_conf, *in_confs] + [tkz.conf for tkz in target_tkzs], 
+            **_
+        )

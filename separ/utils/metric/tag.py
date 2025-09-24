@@ -2,7 +2,7 @@ from __future__ import annotations
 import torch 
 
 from separ.utils.metric.metric import Metric 
-from separ.data import TargetTokenizer
+from separ.data.tkz import TargetTokenizer
 from separ.utils.fn import div 
 from separ.utils.shard import is_distributed, sync
 

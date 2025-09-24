@@ -2,14 +2,12 @@ from __future__ import annotations
 from argparse import ArgumentParser
 import torch 
 
-from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, Arc 
-from separ.utils import flatten, Config, bar 
+from separ.data import CoNLL, Arc, deprojectivize
 from separ.models.dep.sl import DependencySLParser
 
 class Bit4DependencyParser(DependencySLParser):
     """4-bit Dependency Parser from [Gómez-Rodríguez et al., 2023](https://aclanthology.org/2023.emnlp-main.393/)."""
     NAME = 'dep-bit4'
-    PARAMS = DependencySLParser.PARAMS | {'proj'}
     
     class Labeler(DependencySLParser.Labeler):
         """4-bit encoding for projective dependency trees.
@@ -21,12 +19,26 @@ class Bit4DependencyParser(DependencySLParser):
         """
         NUM_BITS = 4
         DEFAULT = '0000'
+        PARAMS = {'proj'}
         
-        def __init__(self, proj: str | None = None):
+        def __init__(self, proj: str | None, **_):
             self.proj = proj
             
         def __repr__(self):
             return f'Bit4DependencyLabeler(proj={self.proj})'
+        
+        @property
+        def NAME(self) -> str:
+            abbr = ''.join(t[0] for t in self.proj.split('+'))
+            return f'dep-4bit({abbr})'
+        
+        @property
+        def NAMES(self) -> list[str]:
+            if self.proj:
+                abbr = ''.join(t[0] for t in self.proj.split('+'))
+                return ['4BIT', f'DEPREL({abbr})']
+            else:
+                return ['4BIT', 'DEPREL']
         
         def encode(self, tree: CoNLL.Tree) -> tuple[list[str], list[str]]:
             if self.proj:
@@ -39,7 +51,8 @@ class Bit4DependencyParser(DependencySLParser):
                     else (tree.ADJACENT[:, head].nonzero().min().item() == dep)
                 bits[idep][2] = tree.ADJACENT[:dep, dep].any().item()
                 bits[idep][3] = tree.ADJACENT[dep:, dep].any().item()
-            return [''.join(map(str, map(int, label))) for label in bits], list(tree.DEPREL)
+            bits = [''.join(map(str, map(int, label))) for label in bits]
+            return bits, tree.DEPREL
         
         def decode(self, bits: list[str], rels: list[str]) -> tuple[list[Arc], bool]:
             left, right = [], [0]
@@ -68,30 +81,14 @@ class Bit4DependencyParser(DependencySLParser):
                 if b3:
                     right.append(idep+1)
             well_formed = well_formed and (len(right + left) == 0) and (adjacent.sum() == len(bits))
-            return self.postprocess(adjacent, rels), well_formed 
-        
-        def test(self, graph: CoNLL.Tree) -> bool:
-            return super().test(graph.planarize(1))
-        
-        def theoretical(self, tree: CoNLL.Tree) -> CoNLL.Tree:
-            rec = super().theoretical(tree)
+            arcs = self.postprocess(adjacent, rels)
             if self.proj:
-                rec = rec.deprojectivize(self.proj)
-            return rec 
+                arcs = deprojectivize(arcs, self.proj)
+            return arcs, well_formed 
         
-        def empirical(
-            self, 
-            tree: CoNLL.Tree,
-            known_labels: list[str],
-            known_rels: list[str],
-            LABEL: str, 
-            REL: str
-        ) -> CoNLL.Tree:
-            rec = super().empirical(tree, known_labels, known_rels, LABEL, REL)
-            if self.proj:
-                rec = rec.deprojectivize(self.proj)
-            return rec 
-            
+        def test(self, tree: CoNLL.Tree) -> bool:
+            return super().test(tree.projectivize(mode='head'))
+        
     def __init__(self, proj: str | None, **kwargs):
         super().__init__(**kwargs)
         self.lab = self.Labeler(proj)
@@ -99,71 +96,6 @@ class Bit4DependencyParser(DependencySLParser):
         
     @classmethod 
     def add_arguments(cls, argparser: ArgumentParser):
-        argparser = super(Bit4DependencyParser, cls).add_arguments(argparser)
         argparser.add_argument('--proj', default=None, type=str, choices=['head', 'head+path', 'path'], help='Pseudo-projective mode')
         return argparser 
-    
-    def transform(self, tree: CoNLL.Tree) -> CoNLL.Tree:
-        if not tree.transformed:
-            tree.BIT, tree.REL = self.lab.encode(tree)
-            tree.transformed = True 
-        return tree 
 
-    def _pred(self, tree: CoNLL.Tree, bit_pred: torch.Tensor, rel_pred: torch.Tensor) -> tuple[CoNLL.Tree, bool]:
-        rec, well_formed = self.lab.decode(self.BIT.decode(bit_pred), self.REL.decode(rel_pred))
-        rec = tree.rebuild_from_arcs(rec)
-        if self.proj:
-            rec = rec.deprojectivize(self.proj)
-        return rec, well_formed
-
-    @classmethod 
-    def build(
-        cls, 
-        data: str | CoNLL,
-        enc_conf: Config,
-        word_conf: Config, 
-        tag_conf: Config | None = None,
-        char_conf: Config | None = None,
-        proj: str | None = None,
-        device: int = 0,
-        **_
-    ) -> Bit4DependencyParser:
-        if isinstance(data, str):
-            data = CoNLL.from_file(data)
-        
-        if hasattr(word_conf, 'pretrained'):
-            input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
-            in_confs = [word_conf | input_tkzs[-1].conf, None, None]
-        else:
-            input_tkzs = [InputTokenizer('WORD', 'FORM')]
-            in_confs = [word_conf]
-            if tag_conf is not None:
-                input_tkzs.append(InputTokenizer('TAG', 'UPOS'))
-                in_confs.append(tag_conf)
-            else:
-                in_confs.append(None)
-            if char_conf is not None:
-                input_tkzs.append(CharacterTokenizer('CHAR', 'FORM'))
-                in_confs.append(char_conf)
-            else:
-                in_confs.append(None)
-                
-            for tkz in input_tkzs:
-                tkz.train(data)
-
-            for conf, tkz in zip([c for c in in_confs if c is not None], input_tkzs):
-                conf.update(tkz.conf)
-            
-        bit_tkz, rel_tkz = TargetTokenizer('BIT'), TargetTokenizer('REL')
-        labeler = cls.Labeler(proj)
-        bits, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
-        bit_tkz.train(bits)
-        rel_tkz.train(rels)
-        
-        return cls(
-            input_tkzs=input_tkzs, 
-            target_tkzs=[bit_tkz, rel_tkz],
-            model_confs=[enc_conf, *in_confs, bit_tkz.conf, rel_tkz.conf], 
-            proj=proj, 
-            device=device
-        )

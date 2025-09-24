@@ -1,6 +1,5 @@
 from __future__ import annotations
 import torch
-from typing import List, Tuple
 
 from separ.data import Arc, adjacent_from_arcs, Graph
 from separ.models.grp.bit6k.parser import Bit6kGraphParser
@@ -21,7 +20,6 @@ class Bit4kGraphParser(Bit6kGraphParser):
         EMPTY_REL = 'NULL'
         N_BITS = 4
         
-        
         def __repr__(self) -> str:
             return f'Bit4kSemanticLabeler(k={self.k})'
             
@@ -29,26 +27,34 @@ class Bit4kGraphParser(Bit6kGraphParser):
         def DEFAULT(self) -> str:
             return '0000'*self.k
         
-        def recoverable(self, graph: Graph) -> List[Arc]:
+        @property 
+        def NAMES(self) -> list[str]:
+            return [f'4({self.k})BIT', 'REL']
+        
+        @property
+        def NAME(self) -> str:
+            return f'grp-4({self.k})bit'
+        
+        def recoverable(self, graph: Graph) -> list[Arc]:
             return flatten(graph.bit4k_planes[p] for p in range(min(self.k, len(graph.bit4k_planes))))
         
-        def fill_artificial(self, arcs: List[Arc], n: int) -> List[Arc]:
+        def fill_artificial(self, arcs: list[Arc], n: int) -> list[Arc]:
             """Fills a list of arcs with artificial nodes to satisfy that each node 
             has one and only one parent.
 
             Args:
-                arcs (List[Arc]): List of arcs.
+                arcs (list[Arc]): List of arcs.
                 n (int): Graph size.
 
             Returns:
-                List[Arc]: New list of arcs.
+                list[Arc]: New list of arcs.
             """
             no_assigned = set(range(1, n+1)) - set(arc.DEP for arc in arcs)
             for dep in no_assigned:
                 arcs.append(Arc(dep-1, dep, self.EMPTY_REL))
             return sorted(arcs)
         
-        def preprocess(self, graph: Graph) -> List[List[Arc]]:
+        def preprocess(self, graph: Graph) -> list[list[Arc]]:
             """Divides the graph in a set of 4k-bit planes. Two arcs cannot belong to the same plane
             if:
                 1. The cross each other in the same direction.
@@ -58,7 +64,7 @@ class Bit4kGraphParser(Bit6kGraphParser):
                 graph (Graph): Input semantic graph.
 
             Returns:
-                List[List[Arc]]: List of k planes.
+                list[list[Arc]]: List of k planes.
             """
             planes = [plane.copy() for plane in graph.bit4k_planes[:self.k]]
             if len(planes) < self.k:
@@ -68,14 +74,14 @@ class Bit4kGraphParser(Bit6kGraphParser):
             planes = [self.fill_artificial(plane, len(graph)) for plane in planes]
             return planes
         
-        def encode(self, graph: Graph) -> Tuple[List[str], List[str]]:
+        def encode(self, graph: Graph) -> tuple[list[str], list[str]]:
             """Encodes a semantic graph with the 4k-bit representation.
 
             Args:
                 graph (Graph): Input semantic graph.
 
             Returns:
-                List[str]: Sequence of 4k-bit labels.
+                list[str]: Sequence of 4k-bit labels.
             """
             graph = graph.collapse_one_cycles() # collapse cycles of length 1
             planes = self.preprocess(graph)
@@ -87,7 +93,7 @@ class Bit4kGraphParser(Bit6kGraphParser):
             filtered = [arc for arc in set(flatten(planes)) if arc.REL != self.EMPTY_REL or not graph.ADJACENT[arc.DEP, arc.HEAD]]
             return labels, self.encode_rels(filtered, len(graph))
         
-        def _encode(self, plane: List[Arc], n: int) -> List[str]:
+        def _encode(self, plane: list[Arc], n: int) -> list[str]:
             labels = [[False for _ in range(self.N_BITS)] for _ in range(n)]
             adjacent = adjacent_from_arcs(plane, n)
             for arc in plane:
@@ -104,7 +110,7 @@ class Bit4kGraphParser(Bit6kGraphParser):
                     labels[arc.DEP-1][1] = True 
             return [''.join(str(int(bit)) for bit in label) for label in labels]
         
-        def decode_rels(self, arcs: List[Arc], rels: List[str]) -> List[Arc]:
+        def decode_rels(self, arcs: list[Arc], rels: list[str]) -> list[Arc]:
             rels = [rel.split(self.SEP) for rel in rels]
             filtered = []
             for arc in arcs:
@@ -113,7 +119,7 @@ class Bit4kGraphParser(Bit6kGraphParser):
                     filtered.append(arc)
             return filtered
                 
-        def _decode(self, labels: List[str]) -> Tuple[List[Arc], bool]:
+        def _decode(self, labels: list[str]) -> tuple[list[Arc], bool]:
             right, left, arcs = [0], [], []
             for idep, label in enumerate(labels):
                 dep = idep+1
@@ -151,7 +157,7 @@ class Bit4kGraphParser(Bit6kGraphParser):
             graph.transformed = True 
         return graph 
     
-    def _pred_rel(self, graph: Graph, arc_pred: List[Arc], rel_pred: torch.Tensor) -> Graph:
+    def _pred_rel(self, graph: Graph, arc_pred: list[Arc], rel_pred: torch.Tensor) -> Graph:
         rel_pred = self.REL.decode(rel_pred)
         arc_filtered = []
         for arc in arc_pred:

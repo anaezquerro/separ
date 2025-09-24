@@ -3,24 +3,34 @@ from argparse import ArgumentParser
 import torch 
 
 from separ.models.dep.sl import DependencySLParser
-from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, PTB, Arc
+from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, PTB, Arc, deprojectivize
 from separ.utils import Config, flatten, bar
 
 class HexaTaggingDependencyParser(DependencySLParser):
     """HexaTagging dependency parser from [Amini et al. (2023)](https://aclanthology.org/2023.acl-short.124/)."""
     NAME = 'dep-hexa'
-    PARAMS = DependencySLParser.PARAMS | {'proj'}
     
     class Labeler(DependencySLParser.Labeler):
+        PARAMS = {'proj'}
         LEFT = 'L'
         RIGHT = 'R'
         ROOT = '$'
         
-        def __init__(self, proj: str):
+        def __init__(self, proj: str, **_):
             self.proj = proj
         
         def __repr__(self) -> str:
             return f'HexaTaggingDependencyLabeler(proj={self.proj})'
+        
+        @property 
+        def NAMES(self) -> list[str]:
+            abbr = ''.join(t[0] for t in self.proj.split('+'))
+            return ['HEXA', 'FENCE', f'DEPREL({abbr})']
+        
+        @property
+        def NAME(self) -> str:
+            abbr = ''.join(t[0] for t in self.proj.split('+'))
+            return f'dep-hexa({abbr})'
         
         def encode(self, tree: CoNLL.Tree) -> tuple[list[str], list[str], list[str]]:
             tree = tree.projectivize(self.proj)
@@ -49,7 +59,7 @@ class HexaTaggingDependencyParser(DependencySLParser):
             self.tree2dep(PTB.Tree(self.ROOT, [btree]), arcs)
             for arc, rel in zip(sorted(arcs), rels):
                 arc.REL = rel 
-            return arcs, well_formed
+            return deprojectivize(arcs, self.proj), well_formed
 
         def dep2tree(self, head: int, tree: CoNLL.Tree, stack: list[int]):
             stack.append(head)
@@ -158,13 +168,6 @@ class HexaTaggingDependencyParser(DependencySLParser):
         def test(self, tree: CoNLL.Tree) -> bool:
             return super().test(tree.projectivize(mode='head'))
         
-        def theoretical(self, tree: CoNLL.Tree) -> CoNLL.Tree:
-            rec, _ = self.decode(*self.encode(tree))
-            rec = tree.rebuild_from_arcs(rec)
-            if self.proj:
-                rec = rec.deprojectivize(self.proj)
-            return rec 
-        
         def empirical(
             self, 
             tree: CoNLL.Tree,
@@ -181,27 +184,13 @@ class HexaTaggingDependencyParser(DependencySLParser):
             rels = [rel if rel in known_rels else REL for rel in rels]
             rec, _ = self.decode(hexas, fences, rels)
             rec = tree.rebuild_from_arcs(rec)
-            if self.proj:
-                rec = rec.deprojectivize(self.proj)
             return rec 
 
     
-    def __init__(self, proj: str | None, **kwargs):
-        super().__init__(**kwargs)
-        self.lab = self.Labeler(proj)
-        self.proj = proj 
-        
     @classmethod 
     def add_arguments(cls, argparser: ArgumentParser):
-        argparser = super(HexaTaggingDependencyParser, cls).add_arguments(argparser)
         argparser.add_argument('--proj', default='head', type=str, choices=['head', 'head+path', 'path'], help='Pseudo-projective mode')
         return argparser 
-    
-    def transform(self, tree: CoNLL.Tree) -> CoNLL.Tree:
-        if not tree.transformed:
-            tree.HEXA, tree.FENCE, tree.REL = self.lab.encode(tree)
-            tree.transformed = True 
-        return tree
     
     def collate(self, trees: list[CoNLL.Tree]):
         inputs, (hmask, fmask, rmask), targets, _ = super().collate(trees)
@@ -211,64 +200,3 @@ class HexaTaggingDependencyParser(DependencySLParser):
             hmask[i,l-1] = False
             fmask[i,l-1] = False 
         return inputs, [hmask, fmask, rmask], targets, trees 
-        
-    def _pred(self, tree: CoNLL.Tree, *preds: list[torch.Tensor]) -> tuple[CoNLL.Tree, bool]:
-        rec, well_formed = self.lab.decode(*[tkz.decode(pred) for tkz, pred in zip(self.target_tkzs, preds)])
-        pred = tree.rebuild_from_arcs(rec)
-        if self.proj:
-            pred = pred.deprojectivize(self.proj)
-        return pred, well_formed
-   
-    @classmethod 
-    def build(
-        cls, 
-        data: str | CoNLL,
-        enc_conf: Config,
-        word_conf: Config, 
-        tag_conf: Config | None = None,
-        char_conf: Config | None = None,
-        proj: str | None = 'head',
-        device: int = 0,
-        **_
-    ) -> HexaTaggingDependencyParser:
-        if isinstance(data, str):
-            data = CoNLL.from_file(data)
-        
-        if hasattr(word_conf, 'pretrained'):
-            input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
-            in_confs = [word_conf | input_tkzs[-1].conf, None, None]
-        else:
-            input_tkzs = [InputTokenizer('WORD', 'FORM')]
-            in_confs = [word_conf]
-            if tag_conf is not None:
-                input_tkzs.append(InputTokenizer('TAG', 'UPOS'))
-                in_confs.append(tag_conf)
-            else:
-                in_confs.append(None)
-            if char_conf is not None:
-                input_tkzs.append(CharacterTokenizer('CHAR', 'FORM'))
-                in_confs.append(char_conf)
-            else:
-                in_confs.append(None)
-                
-            for tkz in input_tkzs:
-                tkz.train(data)
-
-            for conf, tkz in zip([c for c in in_confs if c is not None], input_tkzs):
-                conf.update(tkz.conf)
-            
-        hexa_tkz = TargetTokenizer('HEXA')
-        fence_tkz = TargetTokenizer('FENCE')
-        rel_tkz = TargetTokenizer('REL')
-        labeler = cls.Labeler(proj)
-        hexas, fences, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
-        hexa_tkz.train(hexas)
-        fence_tkz.train(fences)
-        rel_tkz.train(rels)
-        return cls(
-            input_tkzs=input_tkzs, 
-            target_tkzs=[hexa_tkz, fence_tkz, rel_tkz], 
-            model_confs=[enc_conf, *in_confs, hexa_tkz.conf, fence_tkz.conf, rel_tkz.conf], 
-            proj=proj, 
-            device=device 
-        )

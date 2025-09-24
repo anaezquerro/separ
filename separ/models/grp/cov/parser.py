@@ -149,13 +149,14 @@ class CovingtonGraphParser(GraphParser):
         super().__init__(**kwargs)
         self.system = self.System()
         
-    def loader(self, data: Dataset, batch_size: int, shuffle: bool):
+    def loader(self, data: Dataset, batch_size: int, shuffle: bool, max_len: int | None = None):
         lens = {i: max(len(graph), graph.POINTER.shape[0]) for i, graph in enumerate(data)}
         return data.loader(
             batch_size=batch_size, 
             shuffle=shuffle,
             collate=self.collate, 
-            lens=lens
+            lens=lens,
+            max_len=max_len
         )
     
     def transform(self, graph: Graph) -> Graph:
@@ -251,14 +252,12 @@ class CovingtonGraphParser(GraphParser):
         tag_conf: Config | None = None,
         char_conf: Config | None = None,
         root_rel: str | None = None,
-        evalb: str | None = None,
-        device: int = 0,
         **_
     ) -> CovingtonGraphParser:
         if isinstance(data, str):
             data = cls.load_data(data)
         
-        if 'pretrained' in word_conf:
+        if hasattr(word_conf, 'pretrained'):
             input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM', bos=True, eos=True)]
             in_confs = [word_conf | input_tkzs[-1].conf, None, None]
         else:
@@ -292,7 +291,6 @@ class CovingtonGraphParser(GraphParser):
             target_tkzs=[action_tkz, rel_tkz], 
             model_confs=[enc_conf, *in_confs, action_tkz.conf, rel_tkz.conf], 
             root_rel=root_rel,
-            evalb=evalb,
-            device=device
+            **_
         )
         

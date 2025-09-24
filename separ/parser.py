@@ -7,9 +7,11 @@ from torch import nn
 from torch.distributed.tensor import distribute_tensor
 import torch.distributed as dist 
 
+
 from separ.model import Model 
 from separ.utils import Config, to, ControlMetric, Metric, logger, bar, filename, save , is_distributed, is_main, all_gather_objects, WORLD_SIZE
 from separ.data import InputTokenizer, TargetTokenizer, Dataset, Sentence
+
 
 os.environ['TOKENIZERS_PARALLELISM'] = 'true'
 os.environ["WANDB_SILENT"] = "true"
@@ -26,7 +28,8 @@ class Parser:
         input_tkzs: list[InputTokenizer],
         target_tkzs: list[TargetTokenizer],
         model_confs: list[Config],
-        device: int
+        device: int,
+        **_
     ):
         self.input_tkzs = input_tkzs
         self.target_tkzs = target_tkzs
@@ -39,6 +42,9 @@ class Parser:
         self.epochs = 1
         self.device = device
         self.no_improv = [0, 0]
+        
+        for param in self.PARAMS:
+            self.__setattr__(param, _[param])
             
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({", ".join(f"{param}={getattr(self, param)}" for param in self.PARAMS)})'
@@ -87,8 +93,8 @@ class Parser:
     def transform(self, sen: Sentence) -> Sentence:
         return sen 
     
-    def loader(self, data: Dataset, batch_size: int, shuffle: bool) -> tuple[DataLoader, Sampler]:
-        return data.loader(batch_size, shuffle=shuffle, collate=self.collate)
+    def loader(self, data: Dataset, batch_size: int, shuffle: bool, max_len: int | None = None) -> tuple[DataLoader, Sampler]:
+        return data.loader(batch_size, shuffle=shuffle, collate=self.collate, max_len=max_len)
     
     @property
     def official(self) -> bool:
@@ -98,6 +104,7 @@ class Parser:
     def add_arguments(cls, argparser: ArgumentParser):
         argparser.add_argument('-c', '--conf', type=str, default=None, help='Configuration file')
         argparser.add_argument('-d', '--device', type=int, default=0, help='CUDA device')
+        argparser.add_argument('--max-len', type=int, default=None, help='Maximum training sentence length')
         argparser.add_argument('--load', type=str, default=None, help='Load the parser')
         argparser.add_argument('--seed', type=int, default=123, help='Parser seed')
         return argparser
@@ -163,6 +170,7 @@ class Parser:
         train_patience: int = 5,
         dev_patience: int = 10,
         run_name: str | None = None,
+        max_len: int | None = None,
         **kwargs
     ):
         """Parser training.
@@ -179,7 +187,6 @@ class Parser:
             dev_patience (int): Number of epochs with no development improvement.
             load (str | None): Whether to load the state of a previous parser.pt.
         """
-        
         train, dev, *test = map(self.transform_data, [train, dev, *test])
         if is_main():
             os.makedirs(output_folder, exist_ok=True)
@@ -194,7 +201,7 @@ class Parser:
         else:
             log = None
         self.optimizer = self.OPTIMIZER(self.model.parameters(), lr=lr)
-        loader, sampler = self.loader(train, batch_size=batch_size, shuffle=True)
+        loader, sampler = self.loader(train, batch_size=batch_size, shuffle=True, max_len=max_len)
         best_metric, best_loss = self.METRIC, torch.inf
         history = []
         for epoch in range(self.epochs, epochs+1):
@@ -235,7 +242,7 @@ class Parser:
                 if log:
                     log.warning('Zero loss reached')
                 break 
-
+            
         torch.cuda.empty_cache()
         self.load_state(torch.load(f'{output_folder}/best.pt', map_location='cpu', weights_only=False).state)
         self.trained = True 
@@ -251,6 +258,7 @@ class Parser:
         if log:
             save(history, f'{output_folder}/history.pickle')
             run.finish()
+        
 
     def epoch(
         self, 

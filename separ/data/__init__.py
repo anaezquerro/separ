@@ -1,4 +1,4 @@
-from .conll import CoNLL
+from .conll import CoNLL, deprojectivize
 from .ptb import PTB 
 from .sdp import SDP 
 from .enh import EnhancedCoNLL

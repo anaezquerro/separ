@@ -28,7 +28,8 @@ class PretrainedEmbedding(nn.Module):
         pad_index: int, 
         vocab_size: int,
         finetune: bool,
-        **kwargs
+        max_len: int,
+        **_,
     ):
         """Pretrained embedding from a HuggingFace model.
         
@@ -46,13 +47,10 @@ class PretrainedEmbedding(nn.Module):
         self.embed.resize_token_embeddings(vocab_size)
         self.embed_size = self.embed.config.hidden_size
         self.pad_index = pad_index
-        if hasattr(kwargs, 'max_len'):
-            self.max_len = kwargs['max_len']
-        else:
-            self.max_len = max_len(pretrained, default=512)
+        self.max_len = max_len
         
-    # def __repr__(self) -> str:
-    #     return f'{self.__class__.__name__}(pretrained={self.pretrained}, embed_size={self.embed_size}, finetune={self.finetune}, max_len={self.max_len})'
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}(pretrained={self.pretrained}, embed_size={self.embed_size}, finetune={self.finetune}, max_len={self.max_len})'
 
     def forward(self, x: tuple[torch.Tensor, list[torch.Tensor]]) -> torch.Tensor:
         """Returns contextualized embeddings.

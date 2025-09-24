@@ -123,5 +123,5 @@ class PretrainedTokenizer(InputTokenizer):
     @property
     def conf(self) -> Config:
         conf = super().conf 
-        conf.max_len = max_len(self.pretrained, 512)
+        # conf.max_len = max_len(self.pretrained, 512)
         return conf

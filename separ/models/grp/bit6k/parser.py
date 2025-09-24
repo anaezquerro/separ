@@ -1,17 +1,14 @@
 from __future__ import annotations
 from argparse import ArgumentParser
-from typing import List, Optional, Union, Tuple
-import os 
 
-from separ.data import SDP, EnhancedCoNLL, TargetTokenizer, Arc, adjacent_from_arcs, Graph
-from separ.utils import Config, split, flatten
+from separ.data import Arc, adjacent_from_arcs, Graph
+from separ.utils import split, flatten
 from separ.models.grp.sl import GraphSLParser
 
 
 class Bit6kGraphParser(GraphSLParser):
     """6k-bit Graph Parser from [Ezquerro et al., (2024)](https://aclanthology.org/2024.emnlp-main.659/)."""
     NAME = 'grp-bit6k'
-    PARAMS = GraphSLParser.PARAMS | {'k'}
     DECOLLAPSE = True 
     
     class Labeler(GraphSLParser.Labeler):
@@ -24,17 +21,26 @@ class Bit6kGraphParser(GraphSLParser):
         - b5: word has right dependants in a plane.
         """
         N_BITS = 6
-        
-        def __init__(self, k: int = 3):
+        PARAMS = {'k'}
+
+        def __init__(self, k: int = 3, **_):
             self.k = k 
             
         def __repr__(self) -> str:
             return f'Bit6kSemanticLabeler(k={self.k})'
         
-        def recoverable(self, graph: Graph) -> List[Arc]:
+        @property
+        def NAMES(self) -> list[str]:
+            return [f'6({self.k})BIT', 'REL']
+        
+        @property
+        def NAME(self) -> str:
+            return f'grp-6({self.k})bit'
+        
+        def recoverable(self, graph: Graph) -> list[Arc]:
             return flatten(self.preprocess(graph))
                  
-        def preprocess(self, graph: Graph) -> List[List[Arc]]:
+        def preprocess(self, graph: Graph) -> list[list[Arc]]:
             """Divides the graph in a set of 6k-bit planes. Two arcs cannot belong to the same 
             plane if:
                 1. They cross each other in the same direction.
@@ -44,21 +50,21 @@ class Bit6kGraphParser(GraphSLParser):
                 graph (Graph): Input semantic graph.
 
             Returns:
-                List[List[Arc]]: List of k planes.
+                list[list[Arc]]: List of k planes.
             """
             planes = [plane.copy() for plane in graph.bit6k_planes[:self.k]]
             if len(planes) < self.k:
                 planes += [[] for _ in range(len(planes), self.k)]
             return planes
         
-        def encode(self, graph: Graph) -> Tuple[List[str], List[str]]:
+        def encode(self, graph: Graph) -> tuple[list[str], list[str]]:
             """Encodes a semantic graph with the 6k-bit representation.
 
             Args:
                 graph (Graph): Input semantic graph.
 
             Returns:
-                List[str]: Sequence of 6k-bit labels.
+                list[str]: Sequence of 6k-bit labels.
             """
             graph = graph.collapse_one_cycles() # collapse cycles of length 1
             planes = self.preprocess(graph)
@@ -68,14 +74,14 @@ class Bit6kGraphParser(GraphSLParser):
                 labels.append(''.join(label))
             return labels, self.encode_rels(flatten(planes), len(graph))
         
-        def decode(self, labels: List[str], rels: Optional[List[str]] = None) -> Tuple[List[Arc], bool]:
+        def decode(self, labels: list[str], rels: list[str] | None = None) -> tuple[list[Arc], bool]:
             """Decodes the 6k-bit representation for a full sequence of labels.
 
             Args:
-                labels (List[str]): 6k-bit input sequence.
+                labels (list[str]): 6k-bit input sequence.
 
             Returns:
-                Tuple[List[Arc], torch.Tensor, bool]: Decoded arcs, adjacent matrix and whether the 
+                tuple[list[Arc], torch.Tensor, bool]: Decoded arcs, adjacent matrix and whether the 
                     input sequence produces a well-formed semantic graph.
             """
             planes = zip(*[[''.join(lab) for lab in split(list(label), self.N_BITS)] for label in labels])
@@ -85,15 +91,15 @@ class Bit6kGraphParser(GraphSLParser):
                 arcs = self.decode_rels(arcs, rels)
             return arcs, all(well_formed)
             
-        def _encode(self, plane: List[Arc], n: int) -> List[str]:
+        def _encode(self, plane: list[Arc], n: int) -> list[str]:
             """Represents a plane with the 6-bit encoding.
 
             Args:
-                plane (List[Arc]): List of non-crossing arcs.
+                plane (list[Arc]): List of non-crossing arcs.
                 n (int): Number of nodes in the graph.
                 
             Returns:
-                List[str]: 6-bit representation.
+                list[str]: 6-bit representation.
             """
             labels = [[False for _ in range(self.N_BITS)] for _ in range(n)]
             adjacent = adjacent_from_arcs(plane, n)
@@ -115,7 +121,7 @@ class Bit6kGraphParser(GraphSLParser):
                         labels[arc.HEAD-1][5] = True 
             return [''.join(str(int(bit)) for bit in label) for label in labels]
                 
-        def _decode(self, labels: List[str]) -> Tuple[List[Arc], bool]:
+        def _decode(self, labels: list[str]) -> tuple[list[Arc], bool]:
             right, left, arcs = [0], [], []
             for idep, label in enumerate(labels):
                 dep = idep+1
@@ -140,47 +146,9 @@ class Bit6kGraphParser(GraphSLParser):
             right.pop(0) # pop the node w0
             return arcs, len(right) == len(left) == 0
             
-    def __init__(self, k: int, **kwargs):
-        super().__init__(**kwargs)
-        self.k = k
-        self.lab = self.Labeler(k)
-        
     @classmethod
     def add_arguments(cls, argparser: ArgumentParser):
-        argparser = super().add_arguments(argparser)
+        argparser = GraphSLParser.add_arguments(argparser)
         argparser.add_argument('-k', type=int, default=3, help='Number of planes for the 6-bit encoding')
         return argparser 
     
-    @classmethod
-    def build(
-        cls,
-        data: Union[SDP, EnhancedCoNLL, str], 
-        enc_conf: Config,
-        word_conf: Config, 
-        tag_conf: Config | None = None,
-        char_conf: Config | None = None,
-        k: int = 2,
-        join_rels: bool = False,
-        evalb: str | None = None,
-        device: int = 0,
-        **_
-    ) -> Bit6kGraphParser:
-        if isinstance(data, str):
-            data = cls.load_data(data)
-        
-        input_tkzs, in_confs = cls.build_inputs(join_rels, data, word_conf, tag_conf, char_conf)
-        bit_tkz, rel_tkz, rel_conf, root_rel = cls.build_targets(
-            label_tkz=TargetTokenizer('BIT'), rel_tkz=TargetTokenizer('REL'), 
-            labeler=cls.Labeler(k=k), data=data, join_rels=join_rels
-        )
-        return cls(
-            input_tkzs=input_tkzs,
-            target_tkzs=[bit_tkz, rel_tkz],
-            model_confs=[enc_conf, *in_confs, bit_tkz.conf, rel_conf], 
-            k=k,
-            join_rels=join_rels,
-            root_rel=root_rel,
-            evalb=evalb,
-            device=device
-        )
-        

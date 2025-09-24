@@ -25,8 +25,10 @@ class Bit7DependencyParser(Bit4DependencyParser):
         """
         NUM_BITS = 7
         DEFAULT = '0000000'
+        NAME = 'dep-7bit'
+        NAMES = ['7BIT', 'DEPREL']
         
-        def __init__(self):
+        def __init__(self, **_):
             pass 
         
         def __repr__(self):
@@ -138,66 +140,3 @@ class Bit7DependencyParser(Bit4DependencyParser):
         
         def test(self, graph: CoNLL.Tree) -> bool:
             return super().test(graph.planarize(2))
-            
-    def __init__(
-        self,
-        input_tkzs: list[InputTokenizer],
-        target_tkzs: list[TargetTokenizer],
-        model_confs: list[Config],
-        device: int
-    ):
-        super(Bit4DependencyParser, self).__init__(input_tkzs, target_tkzs, model_confs, device)
-        self.lab = self.Labeler()
-        
-    def _pred(self, tree: CoNLL.Tree, bit_pred: torch.Tensor, rel_pred: torch.Tensor) -> tuple[CoNLL.Tree, bool]:
-        rec, well_formed = self.lab.decode(self.BIT.decode(bit_pred), self.REL.decode(rel_pred))
-        return tree.rebuild_from_arcs(rec), well_formed        
-    
-    @classmethod
-    def build(
-        cls, 
-        data: str | CoNLL,
-        enc_conf: Config,
-        word_conf: Config, 
-        tag_conf: Config | None = None,
-        char_conf: Config | None = None,
-        device: int = 0,
-        **_
-    ) -> Bit7DependencyParser:
-        if isinstance(data, str):
-            data = CoNLL.from_file(data)
-            
-        if hasattr(word_conf, 'pretrained'):
-            input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
-            in_confs = [word_conf | input_tkzs[-1].conf, None, None]
-        else:
-            input_tkzs = [InputTokenizer('WORD', 'FORM')]
-            in_confs = [word_conf]
-            if tag_conf is not None:
-                input_tkzs.append(InputTokenizer('TAG', 'UPOS'))
-                in_confs.append(tag_conf)
-            else:
-                in_confs.append(None)
-            if char_conf is not None:
-                input_tkzs.append(CharacterTokenizer('CHAR', 'FORM'))
-                in_confs.append(char_conf)
-            else:
-                in_confs.append(None)
-                
-            for tkz in input_tkzs:
-                tkz.train(data)
-
-            for conf, tkz in zip([c for c in in_confs if c is not None], input_tkzs):
-                conf.update(tkz.conf)
-            
-        bit_tkz, rel_tkz = TargetTokenizer('BIT'), TargetTokenizer('REL')
-        labeler = cls.Labeler()
-        bits, rels = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
-        bit_tkz.train(bits)
-        rel_tkz.train(rels)
-        return cls(
-            input_tkzs=input_tkzs, 
-            target_tkzs=[bit_tkz, rel_tkz], 
-            model_confs=[enc_conf, *in_confs, bit_tkz.conf, rel_tkz.conf], 
-            device=device
-        )

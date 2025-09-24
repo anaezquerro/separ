@@ -69,8 +69,6 @@ class BiaffineGraphParser(GraphParser):
         word_conf: Config, 
         tag_conf: Config | None = None,
         char_conf: Config | None = None,
-        evalb: str | None = None,
-        device: int = 0,
         **_
     ) -> BiaffineGraphModel:
         if isinstance(data, str):
@@ -115,6 +113,5 @@ class BiaffineGraphParser(GraphParser):
             target_tkzs=[rel_tkz], 
             model_confs=[enc_conf, *in_confs, rel_conf], 
             root_rel=root_rel,
-            evalb=evalb,
-            device=device
+            **_
         )

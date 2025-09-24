@@ -2,7 +2,7 @@ from torch import nn
 import torch 
 from torch.distributed.fsdp import fully_shard
 
-from separ.utils import Config, shard_modules
+from separ.utils import Config, shard_modules, max_len
 from separ.modules import PretrainedEmbedding, LSTM, CharLSTM, FFN, Embedding
 from separ.modules.lstm import xLSTM, BixLSTM
 
@@ -24,6 +24,8 @@ class Model(nn.Module):
         # encoder
         if 'pretrained' in word_conf:
             self.pretrained = True 
+            if not hasattr(word_conf, 'max_len'):
+                word_conf.max_len = max_len(word_conf.pretrained, 512)
             self.word_embed = PretrainedEmbedding(**word_conf)
             if 'dropout' not in enc_conf:
                 enc_conf.dropout = 0.0

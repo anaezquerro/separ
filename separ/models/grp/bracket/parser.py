@@ -10,7 +10,6 @@ class BracketGraphParser(GraphSLParser):
     """Bracket Graph Parser from [Ezquerro et al., 2024](https://aclanthology.org/2024.emnlp-main.659/)."""
     
     NAME = 'grp-bracket'
-    PARAMS = GraphSLParser.PARAMS | {'k'}
     DECOLLAPSE = True 
     
     class Labeler(GraphSLParser.Labeler):
@@ -66,12 +65,22 @@ class BracketGraphParser(GraphSLParser):
         ]
         """
         BRACKETS = [ '\\', '>', '<', '/']
+        PARAMS = {'k'}
+        NAMES = ['BRACKET', 'REL']
         
-        def __init__(self, k: int):
+        def __init__(self, k: int, **_):
             self.k = k 
             
         def __repr__(self) -> str:
             return f'BracketSemanticLabeler(k={self.k})'
+        
+        @property
+        def NAMES(self) -> list[str]:
+            return [f'BRACKET({self.k})', 'REL']
+
+        @property
+        def NAME(self) -> str:
+            return f'grp-br({self.k})'
             
         def split_bracket(self, bracket: str) -> list[str]:
             """Splits a bracket token label into different brackets.
@@ -172,46 +181,10 @@ class BracketGraphParser(GraphSLParser):
             # the sequence of brackets are well-formed if the both stacks are empty
             return arcs, len(left) == len(right) == 0
         
-    def __init__(self, k: int, **kwargs):
-        super().__init__(**kwargs)
-        self.k = k 
-        self.lab = self.Labeler(k)
      
     @classmethod 
     def add_arguments(cls, argparser: ArgumentParser):
-        argparser = super().add_arguments(argparser)
+        argparser = GraphSLParser.add_arguments(argparser)
         argparser.add_argument('-k', type=int, help='Number of bracket planes')
         return argparser 
     
-    @classmethod 
-    def build(
-        cls,
-        data: SDP | EnhancedCoNLL | str, 
-        enc_conf: Config,
-        word_conf: Config, 
-        tag_conf: Config | None = None, 
-        char_conf: Config | None = None,
-        k: int = 2,
-        join_rels: bool = False,
-        evalb: str | None = None,
-        device: int = 0,
-        **_
-    ) -> BracketGraphParser:
-        if isinstance(data, str):
-            data = cls.load_data(data)
-            
-        input_tkzs, in_confs = cls.build_inputs(join_rels, data, word_conf, tag_conf, char_conf)
-        bracket_tkz, rel_tkz, rel_conf, root_rel = cls.build_targets(
-            label_tkz=TargetTokenizer('BRACKET'), rel_tkz=TargetTokenizer('REL'), 
-            labeler=cls.Labeler(k=k), data=data, join_rels=join_rels
-        )
-        return cls(
-            input_tkzs=input_tkzs,
-            target_tkzs=[bracket_tkz, rel_tkz], 
-            model_confs=[enc_conf, *in_confs, bracket_tkz.conf, rel_conf], 
-            k=k,
-            join_rels=join_rels,
-            root_rel=root_rel,
-            evalb=evalb,
-            device=device
-        )

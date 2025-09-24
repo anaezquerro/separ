@@ -12,8 +12,10 @@ class PoSDependencyParser(DependencySLParser):
     class Labeler(DependencySLParser.Labeler):
         SEP = '$'
         DEFAULT = 'root$-1'
-        
-        def __init__(self):
+        NAMES = ['INDEX(P)', 'UPOS', 'REL']
+        NAME = 'dep-pos'
+
+        def __init__(self, **_):
             pass 
         
         def __repr__(self) -> str:
@@ -30,9 +32,9 @@ class PoSDependencyParser(DependencySLParser):
                     index = -sum(tags[i] == pos for i in range(arc.HEAD, arc.DEP))
                 indexes[arc.DEP-1] = f'{pos}{self.SEP}{index}'
                 rels[arc.DEP-1] = arc.REL 
-            return indexes, rels, list(tree.UPOS)
+            return indexes, list(tree.UPOS), rels
         
-        def decode(self, indexes: list[str], rels: list[str], tags: list[str]) -> tuple[list[Arc], bool]:
+        def decode(self, indexes: list[str], tags: list[str], rels: list[str]) -> tuple[list[Arc], bool]:
             n, tags = len(indexes), ['<bos>'] + tags
             adjacent = torch.zeros(n+1, n+1, dtype=torch.bool)
             well_formed = True 
@@ -58,57 +60,7 @@ class PoSDependencyParser(DependencySLParser):
                 adjacent[dep, head] = True 
             return self.postprocess(adjacent, rels), well_formed and (n == adjacent.sum())
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.lab = self.Labeler()
-        
-    @classmethod
-    def transform(self, tree: CoNLL.Tree) -> CoNLL.Tree:
-        if not tree.transformed:
-            tree.INDEX, tree.REL, tree.TAG = self.lab.encode(tree)
-            tree.transformed = True 
-           
     @classmethod 
-    def build(
-        cls, 
-        data: str | CoNLL,
-        enc_conf: Config,
-        word_conf: Config, 
-        char_conf: Config | None = None,
-        device: int = 0,
-        **_
-    ) -> PoSDependencyParser:
-        if isinstance(data, str):
-            data = CoNLL.from_file(data)
-        
-        if 'pretrained' in word_conf:
-            input_tkzs = [PretrainedTokenizer(word_conf.pretrained, 'WORD', 'FORM')]
-            in_confs = [word_conf | input_tkzs[-1].conf, None, None]
-        else:
-            word_tkz = InputTokenizer('WORD', 'FORM')
-            word_tkz.train(data)
-            word_conf.update(word_tkz.conf)
-            input_tkzs = [word_tkz]
-            
-            if char_conf is not None:
-                char_tkz = CharacterTokenizer('CHAR', 'FORM')
-                char_tkz.train(data)
-                char_conf.update(char_tkz.conf)
-                input_tkzs.append(char_tkz)
-                
-            in_confs = [word_conf, None, char_conf]
-            
-        index_tkz, rel_tkz, tag_tkz = TargetTokenizer('INDEX'), TargetTokenizer('REL'), TargetTokenizer('TAG')
-        labeler = cls.Labeler()
-        indexes, rels, tags = map(flatten, zip(*bar(map(labeler.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
-        index_tkz.train(indexes)
-        rel_tkz.train(rels)
-        tag_tkz.train(tags)
-        return cls(
-            input_tkzs=input_tkzs,
-            target_tkzs=[index_tkz, rel_tkz, tag_tkz],
-            model_confs=[enc_conf, *in_confs, index_tkz.conf, rel_tkz.conf, tag_tkz.conf], 
-            device=device
-        )
-        
-            
+    def build(cls, **_) -> PoSDependencyParser:
+        _['tag_conf'] = None
+        return super().build(**_)
