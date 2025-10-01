@@ -283,7 +283,7 @@ class CovingtonGraphParser(GraphParser):
         # train target tokenizers 
         action_tkz, rel_tkz = TargetTokenizer('ACTION'), TargetTokenizer('REL')
         system = cls.System()
-        _, actions, rels = map(flatten, zip(*bar(map(system.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
+        __, actions, rels = map(flatten, zip(*bar(map(system.encode, data), total=len(data), leave=False, desc=f'{cls.NAME}[encode]')))
         action_tkz.train(actions)
         rel_tkz.train(rels)
         return cls(

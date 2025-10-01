@@ -1,10 +1,8 @@
 from __future__ import annotations
 from argparse import ArgumentParser
-import torch 
 
 from separ.models.dep.sl import DependencySLParser
-from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, PTB, Arc, deprojectivize
-from separ.utils import Config, flatten, bar
+from separ.data import CoNLL, PTB, Arc, deprojectivize
 
 class HexaTaggingDependencyParser(DependencySLParser):
     """HexaTagging dependency parser from [Amini et al. (2023)](https://aclanthology.org/2023.acl-short.124/)."""

@@ -1,1 +1,3 @@
 from .parser import TetraTaggingConstituencyParser
+from .dit import TetraTaggingConstituencyDiTParser
+from .gat import TetraTaggingConstituencyGaTParser

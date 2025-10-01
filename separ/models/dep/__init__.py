@@ -12,4 +12,7 @@ DEP_PARSERS = [
     IndexDependencyParser, PoSDependencyParser, BracketDependencyParser, 
     HierarchicalDependencyParser, Bit4DependencyParser, Bit7DependencyParser, 
     HexaTaggingDependencyParser, ArcEagerDependencyParser, BiaffineDependencyParser, 
+    
+    IndexDependencyDiTParser, BracketDependencyDiTParser, Bit4DependencyDiTParser, Bit7DependencyDiTParser, HexaTaggingDependencyDiTParser,
+    IndexDependencyGaTParser, BracketDependencyGaTParser, Bit4DependencyGaTParser, Bit7DependencyGaTParser, HexaTaggingDependencyGaTParser
 ]

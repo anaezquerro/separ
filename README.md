@@ -31,7 +31,7 @@ It is also the official repository of the following papers:
 - *Dependency Graph Parsing as Sequence Labeling* ([Ezquerro et al., 2024](https://aclanthology.org/2024.emnlp-main.659/)).
 - *Hierarchical Bracketing Encodings for Dependency Parsing as Tagging* ([Ezquerro et al., 2025a](https://aclanthology.org/2025.acl-long.903/)).
 - *Hierarchical Bracketing Encodings Work for Dependency Graphs* ([Ezquerro et al., 2025b](https://arxiv.org/abs/2509.09388)).
-
+- *Bringing Emerging Architectures to Sequence Labeling in NLP* ([Ezquerro et al., 2025c](https://arxiv.org/abs/2509.25918)).
 
 Please, feel free to [reach out](mailto:ana.ezquerro@udc.es) if you want to collaborate or include  additional parsers to [SePar](https://github.com/anaezquerro/separ)!
 
@@ -39,14 +39,10 @@ Please, feel free to [reach out](mailto:ana.ezquerro@udc.es) if you want to coll
 
 ## Installation 
 
-This code was tested in [Python >=3.12](https://www.python.org/downloads/release/python-3110/) in a GPU system with NVIDIA drivers (>=535) and CUDA (>=12.4) installed. Use the [requirements.txt](requirements.txt) to download the dependencies in an existing environment or the [environment.yaml](environment.yaml) to create an Anaconda environment.
+This code was tested in [Python >=3.12](https://www.python.org/downloads/release/python-3110/) in a GPU system with NVIDIA drivers (>=535) and CUDA (>=12.4) installed. Use the [requirements.txt](requirements.txt) to download the dependencies in an existing environment:
 
 ```shell
 pip install -r requirements.txt
-```
-or
-```shell 
-conda env create -n separ -f environment.yaml
 ```
 
 ### Evaluation
@@ -81,8 +77,6 @@ You can train, evaluate and predict different parsers from terminal with the [ru
 | `grp-bit6k` | $6k$-bit encoding | [Ezquerro et al. (2024)](https://aclanthology.org/2024.emnlp-main.659/) | `k`$\in\mathbb{N}$ | `3` |
 | `grp-cov`| Covington | [Covington (2001)](https://ai1.ai.uga.edu/mc/dparser/dgpacmnew.pdf) | | | 
 | `grp-biaffine` | Biaffine graph parser | [Dozat & Manning (2018)](https://aclanthology.org/P18-2077/) | || 
-
-
 
 
 ### Training
@@ -167,8 +161,15 @@ where:
 And optionally:
 - `<batch-size>`: Inference batch size. By default is set to 100.
 
+## Reproducibility and examples
 
-## Examples
+Check the [docs](docs/) folder for specific examples running different dependency ([docs/dep.md](docs/dep.md)), constituency ([docs/con.md](docs/con.md)) and semantic ([docs/grp.md](docs/grp.md)) parsers. Each document contains specific instructions to reproduce the results of the original papers:
 
-Check the [docs](docs/) folder for specific examples running different dependency ([docs/dep.md](docs/dep.md)), constituency ([docs/con.md](docs/con.md)) and semantic ([docs/grp.md](docs/grp.md)) parsers. The [docs/examples.ipynb](docs/examples.ipynb) notebook includes some examples of how to use the implemented classes and methods to parse and linearize input graphs/trees.
+- *Dependency Graph Parsing as Sequence Labeling* ([Ezquerro et al., 2024](https://aclanthology.org/2024.emnlp-main.659/)).
+- *Hierarchical Bracketing Encodings for Dependency Parsing as Tagging* ([Ezquerro et al., 2025a](https://aclanthology.org/2025.acl-long.903/)).
+- *Hierarchical Bracketing Encodings Work for Dependency Graphs* ([Ezquerro et al., 2025b](https://arxiv.org/abs/2509.09388)).
+- *Bringing Emerging Architectures to Sequence Labeling in NLP* ([Ezquerro et al., 2025c](https://arxiv.org/abs/2509.25918)).
+
+
+The [docs/examples.ipynb](docs/examples.ipynb) notebook includes some examples of how to use the implemented classes and methods to parse and linearize input graphs/trees.
 

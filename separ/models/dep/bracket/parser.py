@@ -3,8 +3,7 @@ from argparse import ArgumentParser
 import torch
 
 from separ.data.struct import Arc, Bracket 
-from separ.utils import flatten, Config, bar 
-from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, Arc
+from separ.data import CoNLL, Arc
 from separ.models.dep.sl import DependencySLParser
 
 

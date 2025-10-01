@@ -71,6 +71,7 @@ class GraphSLParser(GraphParser, Tagger):
     
     @classmethod
     def add_arguments(cls, argparser: ArgumentParser):
+        argparser = GraphParser.add_arguments(argparser)
         argparser.add_argument('--join-rels', action='store_true', help='Whether to join arc labels')
         return argparser
     

@@ -5,8 +5,7 @@ import torch
 from separ.models.dep.bracket.parser import BracketDependencyParser
 from separ.models.dep.sl import DependencySLParser
 from separ.data.struct import Bracket, Arc, Graph
-from separ.data import CoNLL, InputTokenizer, TargetTokenizer, PretrainedTokenizer, CharacterTokenizer, deprojectivize
-from separ.utils import Config, flatten, bar
+from separ.data import deprojectivize
 
 class HierarchicalDependencyParser(BracketDependencyParser):
     NAME = 'dep-hier'

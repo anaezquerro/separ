@@ -1,8 +1,8 @@
 from __future__ import annotations
 from argparse import ArgumentParser
 
-from separ.data import TargetTokenizer, SDP, EnhancedCoNLL, Arc, Graph
-from separ.utils import flatten, Config
+from separ.data import Arc, Graph
+from separ.utils import flatten
 from separ.models.grp.sl import GraphSLParser
 
 
@@ -72,7 +72,7 @@ class BracketGraphParser(GraphSLParser):
             self.k = k 
             
         def __repr__(self) -> str:
-            return f'BracketSemanticLabeler(k={self.k})'
+            return f'BracketGraphLabeler(k={self.k})'
         
         @property
         def NAMES(self) -> list[str]:

@@ -1,1 +1,3 @@
 from .parser import HexaTaggingDependencyParser
+from .dit import HexaTaggingDependencyDiTParser
+from .gat import HexaTaggingDependencyGaTParser

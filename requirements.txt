@@ -8,3 +8,4 @@ wandb
 scikit-learn
 plotly
 sentencepiece
+xlstm

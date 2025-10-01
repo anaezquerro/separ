@@ -42,3 +42,22 @@ Predict with the trained parser at  `$RESULTS_FOLDER/con-tetra-xlnet/parser.pt`:
 python3 run.py con-tetra --load $RESULTS_FOLDER/con-tetra-xlnet/parser.pt predict \
     $DATA_FOLDER/ptb/test.ptb $RESULTS_FOLDER/con-tetra-xlnet/pred.ptb --batch-size 50
 ```
+
+## Reproducibility 
+
+### *Bringing Emerging Architectures to Sequence Labeling in NLP* ([Ezquerro et al., 2025c](https://arxiv.org/abs/2509.25918))
+
+[Ezquerro et al. (2025c)](https://arxiv.org/abs/2509.25918) conducted experiments on tree indexing ([Gómez-Rodríguez and Vilares, 2018](https://aclanthology.org/D18-1162/)) and tetra-tagging ([Kitaev and Klein, 2020](https://aclanthology.org/2020.acl-main.557/)) using a diffusion and adversarial tagger. 
+
+> [!NOTE]  
+> For the diffusion model, note that the parameters of `[dec_conf]` are loaded from the configuration file, while for the adversarial tagger, the `[dis_conf]` is used. To call the diffusion (`dit`) or adversarial (`gat`) model, use the `dit` and `gat` variants of each graph encoding (introducing the flag between the `grp` prefix and encoding suffix). 
+
+An example to run tetratagging on the PTB with the adversarial tagger:
+```shell 
+python3 run.py con-gat-tetra -c configs/xlnet.ini \
+    train --train $DATA_FOLDER/ptb/train.ptb \
+          --dev $DATA_FOLDER/ptb/dev.ptb \
+          --test $DATA_FOLDER/ptb/test.ptb 
+          --output-folder $RESULTS_FOLDER/con-gat-tetra
+```
+

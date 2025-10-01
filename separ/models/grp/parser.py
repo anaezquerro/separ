@@ -24,6 +24,6 @@ class GraphParser(Parser):
 
     @classmethod
     def add_arguments(cls, argparser: ArgumentParser):
-        argparser.add_argument('--evalb', default=None, type=str, required=False,  help='Evaluation script')
+        argparser.add_argument('--evalb', default=None, type=str, required=False, help='Evaluation script')
         return argparser
     
